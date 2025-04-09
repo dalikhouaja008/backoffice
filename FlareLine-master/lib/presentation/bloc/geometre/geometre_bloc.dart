@@ -1,6 +1,4 @@
 // lib/features/geometre/presentation/bloc/geometre_bloc.dart
-import 'dart:nativewrappers/_internal/vm/lib/ffi_allocation_patch.dart';
-
 import 'package:flareline/domain/use_cases/geometre/get_pending_lands.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_event.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_state.dart';
