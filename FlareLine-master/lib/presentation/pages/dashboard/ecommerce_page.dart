@@ -17,7 +17,7 @@ class EcommercePage extends LayoutWidget {
   @override
   Widget contentDesktopWidget(BuildContext context) {
     return const Column(children: [
-      GridCard(),
+      GridCard(children: [],),
       SizedBox(
         height: 16,
       ),
