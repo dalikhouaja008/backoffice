@@ -51,12 +51,6 @@ class LandsList extends StatelessWidget {
         return CommonCard(
           child: Column(
             children: [
-              SearchWidget(
-                controller: TextEditingController(),
-                onChanged: (value) {
-                  context.read<GeometreBloc>().add(SearchLands(query: value));
-                },
-              ),
               const SizedBox(height: 16),
               
               if (state is GeometreLoading)

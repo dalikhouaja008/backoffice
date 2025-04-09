@@ -25,8 +25,6 @@ class GeometreRemoteDataSource {
         error: {
           'landId': landId,
           'isValidated': isValidated,
-          'timestamp': '2025-04-09 14:51:36',
-          'userLogin': 'dalikhouaja008',
         },
       );
 
@@ -49,8 +47,6 @@ class GeometreRemoteDataSource {
         'Error validating land',
         error:  {
           'landId': landId,
-          'timestamp': '2025-04-09 14:51:36',
-          'userLogin': 'dalikhouaja008',
         },
       );
       rethrow;

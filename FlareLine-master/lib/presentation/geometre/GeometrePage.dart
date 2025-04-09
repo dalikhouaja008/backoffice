@@ -5,6 +5,7 @@ import 'package:flareline/presentation/pages/layout.dart';
 import 'package:flutter/widgets.dart';
 
 class GeometrePage extends LayoutWidget {
+  const GeometrePage({Key? key}) : super(key: key);
   @override
   Widget contentDesktopWidget(BuildContext context) {
     return Column(

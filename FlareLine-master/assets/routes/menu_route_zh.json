@@ -1,5 +1,15 @@
 [
   {
+    "groupName": "Gestion",
+    "menuList": [
+      {
+        "icon": "assets/sidebar/map.svg",
+        "menuName": "Géomètre",
+        "path": "/geometre"
+      }
+    ]
+  },
+  {
     "groupName": "项目",
     "menuList": [
       {
