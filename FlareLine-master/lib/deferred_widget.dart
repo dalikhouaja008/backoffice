@@ -9,6 +9,13 @@ typedef LibraryLoader = Future<void> Function();
 typedef DeferredWidgetBuilder = Widget Function();
 
 /// Wraps the child inside a deferred module loader.
+/// +
+
+
+
+
+
+
 ///
 /// The child is created and a single instance of the Widget is maintained in
 /// state as long as closure to create widget stays the same.
