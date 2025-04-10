@@ -4,11 +4,31 @@ import 'package:flareline/presentation/bloc/geometre/geometre_bloc.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_event.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_state.dart';
 import 'package:flareline/presentation/pages/form/validation_checkbox.dart';
+import 'package:flareline/presentation/pages/layout.dart';
 import 'package:flareline_uikit/components/buttons/button_form.dart';
 import 'package:flareline_uikit/components/card/common_card.dart';
 import 'package:flareline_uikit/components/forms/outborder_text_form_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+class LandValidationFormPage extends LayoutWidget {
+  final Land? land;
+
+  const LandValidationFormPage({super.key, this.land});
+
+  @override
+  String breakTabTitle(BuildContext context) {
+    return 'Validation de terrain';
+  }
+
+  @override
+  Widget contentDesktopWidget(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(16.0),
+      child: LandValidationForm(),
+    );
+  }
+}
 
 class LandValidationForm extends StatefulWidget {
   const LandValidationForm({super.key});

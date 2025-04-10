@@ -5,11 +5,13 @@ import 'package:flareline/domain/entities/route_entity.dart';
 class RouteLayer extends StatelessWidget {
   final RouteEntity route;
   final bool showMarkers;
+  final bool showInfoBubble;
 
   const RouteLayer({
     Key? key,
     required this.route,
     this.showMarkers = true,
+    this.showInfoBubble = true,
   }) : super(key: key);
 
   @override
@@ -17,85 +19,114 @@ class RouteLayer extends StatelessWidget {
     if (route.points.isEmpty) {
       return Container();
     }
-
+    
+    // Vérifier si l'écran est petit
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
+    final bubblePadding = isSmallScreen ? 8.0 : 12.0;
+    final fontSize = isSmallScreen ? 12.0 : 14.0;
+    final iconSize = isSmallScreen ? 14.0 : 16.0;
+    
     return Stack(
       children: [
-        // Ligne de l'itinéraire
+        // Ligne de l'itinéraire avec effet de dégradé
         PolylineLayer(
           polylines: [
             Polyline(
               points: route.points,
-              strokeWidth: 4.0,
-              color: Colors.blue,
-              borderColor: Colors.blue.shade800,
-              borderStrokeWidth: 1.0,
+              strokeWidth: isSmallScreen ? 4.0 : 5.0,
+              color: Colors.blue.shade600,
+              borderColor: Colors.blue.shade900,
+              borderStrokeWidth: isSmallScreen ? 0.5 : 1.0,
+              isDotted: false,
+              gradientColors: [
+                Colors.blue.shade400,
+                Colors.blue.shade700,
+              ],
             ),
           ],
         ),
         
-        // Marqueurs de départ/fin si demandé
+        // Marqueurs début/fin si demandés
         if (showMarkers)
           MarkerLayer(
             markers: [
-              // Marqueur de départ
+              // Marqueur de départ (position utilisateur)
               Marker(
                 point: route.points.first,
-                width: 30,
-                height: 30,
-                child: const Icon(
-                  Icons.my_location,
-                  color: Colors.blue,
-                  size: 20,
+                width: isSmallScreen ? 16 : 20,
+                height: isSmallScreen ? 16 : 20,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: isSmallScreen ? 1.5 : 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: isSmallScreen ? 2 : 3,
+                        spreadRadius: isSmallScreen ? 0.5 : 1,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              // Marqueur d'arrivée (déjà géré par la vue principale)
             ],
           ),
           
         // Info-bulle avec distance et durée
-        Positioned(
-          top: 10,
-          right: 10,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.directions_car, size: 16, color: Colors.blue),
-                    const SizedBox(width: 4),
-                    Text(
-                      route.formattedDistance,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.access_time, size: 16, color: Colors.blue),
-                    const SizedBox(width: 4),
-                    Text(route.formattedDuration),
-                  ],
-                ),
-              ],
+        if (showInfoBubble)
+          Positioned(
+            top: isSmallScreen ? 8 : 10,
+            right: isSmallScreen ? 8 : 10,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: bubblePadding, 
+                vertical: bubblePadding / 1.5
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(isSmallScreen ? 6 : 8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: isSmallScreen ? 3 : 4,
+                    offset: Offset(0, isSmallScreen ? 1 : 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.directions_car, size: iconSize, color: Colors.blue),
+                      SizedBox(width: 4),
+                      Text(
+                        route.formattedDistance,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: fontSize,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: isSmallScreen ? 2 : 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.access_time, size: iconSize, color: Colors.blue),
+                      SizedBox(width: 4),
+                      Text(
+                        route.formattedDuration,
+                        style: TextStyle(fontSize: fontSize),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
