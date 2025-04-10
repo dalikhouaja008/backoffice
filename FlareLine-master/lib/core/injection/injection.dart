@@ -1,4 +1,5 @@
 // lib/injection.dart
+import 'package:flareline/core/api/openroute_service.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
@@ -16,6 +17,10 @@ void setupInjection() {
   getIt.registerLazySingleton(() => Logger());
   getIt.registerLazySingleton(
       () => Dio()..options.baseUrl = 'http://localhost:5000');
+      // Enregistrer le service OpenRouteService
+  getIt.registerLazySingleton<OpenRouteService>(() => OpenRouteService(
+    apiKey: '5b3ce3597851110001cf6248c25ce73e7fc44895be99f46b9e13afbd', 
+  ));
 
   // Data sources
   getIt.registerLazySingleton<GeometreRemoteDataSource>(

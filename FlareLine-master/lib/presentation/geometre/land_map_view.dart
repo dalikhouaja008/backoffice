@@ -1,12 +1,14 @@
-// lib/presentation/geometre/land_map_view.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
-import 'package:flareline/domain/entities/land_entity.dart';
-import 'package:flareline/core/theme/global_colors.dart';
-import 'package:logger/logger.dart';
+import 'package:flareline/core/api/openroute_service.dart';
 import 'package:flareline/core/injection/injection.dart';
+import 'package:flareline/domain/entities/land_entity.dart';
+import 'package:flareline/domain/entities/route_entity.dart';
+import 'package:flareline/presentation/geometre/widgets/route_layer.dart';
+import 'package:flareline/presentation/geometre/widgets/map_control_buttons.dart';
+import 'package:logger/logger.dart';
 
 class LandMapView extends StatefulWidget {
   final Land land;
@@ -24,12 +26,20 @@ class LandMapView extends StatefulWidget {
 
 class _LandMapViewState extends State<LandMapView> {
   late MapController mapController;
+  late OpenRouteService routeService;
+
+  RouteEntity? route;
+  bool showRoute = false;
+  bool loadingRoute = false;
 
   @override
-  void initState() {
-    super.initState();
-    mapController = MapController();
-  }
+void initState() {
+  super.initState();
+  mapController = MapController();
+  
+  routeService = getIt<OpenRouteService>();
+  
+}
 
   @override
   void didUpdateWidget(LandMapView oldWidget) {
@@ -41,6 +51,11 @@ class _LandMapViewState extends State<LandMapView> {
           LatLng(widget.land.latitude!, widget.land.longitude!),
           15,
         );
+        // Réinitialiser l'itinéraire si on change de terrain
+        setState(() {
+          route = null;
+          showRoute = false;
+        });
       });
     }
   }
@@ -51,158 +66,203 @@ class _LandMapViewState extends State<LandMapView> {
     super.dispose();
   }
 
+  // Fonction pour récupérer l'itinéraire
+  Future<void> _fetchRoute() async {
+    setState(() {
+      loadingRoute = true;
+    });
+
+    try {
+      // Simulez la position actuelle de l'utilisateur
+      final userLat = widget.land.latitude! - 0.02;
+      final userLng = widget.land.longitude! - 0.01;
+
+      final origin = LatLng(userLat, userLng);
+      final destination = LatLng(widget.land.latitude!, widget.land.longitude!);
+
+      // Essayez d'abord avec la méthode POST
+      var fetchedRoute = await routeService.getRoute(
+        origin: origin,
+        destination: destination,
+      );
+
+      // Si la méthode POST échoue, essayez la méthode GET
+      if (fetchedRoute == null) {
+        getIt<Logger>().log(
+          Level.info,
+          'POST request failed, trying GET request',
+        );
+
+        fetchedRoute = await routeService.getRouteViaGet(
+          origin: origin,
+          destination: destination,
+        );
+      }
+
+      if (fetchedRoute != null && fetchedRoute.points.isNotEmpty) {
+        setState(() {
+          route = fetchedRoute;
+          showRoute = true;
+          loadingRoute = false;
+        });
+
+        // Ajuster la vue de la carte pour montrer tout l'itinéraire
+        final bounds = LatLngBounds.fromPoints(fetchedRoute.points);
+        mapController.fitBounds(
+          bounds,
+          options: const FitBoundsOptions(padding: EdgeInsets.all(30)),
+        );
+      } else {
+        setState(() {
+          loadingRoute = false;
+        });
+
+        _showErrorDialog(
+            'Impossible de récupérer l\'itinéraire. Veuillez réessayer.');
+      }
+    } catch (e) {
+      getIt<Logger>().log(
+        Level.error,
+        'Error fetching route',
+        error: e.toString(),
+      );
+
+      setState(() {
+        loadingRoute = false;
+      });
+
+      _showErrorDialog(
+          'Une erreur s\'est produite. Veuillez réessayer plus tard.');
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Erreur'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Fonction pour afficher ou masquer l'itinéraire
+  void _toggleRoute() async {
+    if (showRoute) {
+      setState(() {
+        showRoute = false;
+      });
+    } else {
+      if (route == null) {
+        await _fetchRoute();
+      } else {
+        setState(() {
+          showRoute = true;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    getIt<Logger>().log(
-      Level.info,
-      'Building map view for land',
-      error: {
-        'landId': widget.land.id,
-        'timestamp': '2025-04-10 19:52:25',
-        'userLogin': 'dalikhouaja008',
-        'coordinates': '${widget.land.latitude}, ${widget.land.longitude}'
-      },
-    );
-
     return Column(
       children: [
+        // Carte
         Expanded(
           flex: 80,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: FlutterMap(
-              mapController: mapController,
-              options: MapOptions(
-                center: LatLng(widget.land.latitude!, widget.land.longitude!),
-                zoom: 15,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.flareline.app',
-                  tileProvider: CancellableNetworkTileProvider(),
-                ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point:
-                          LatLng(widget.land.latitude!, widget.land.longitude!),
-                      width: 80,
-                      height: 60, // Réduit la hauteur
-                      child: Stack(
-                        // Utilisation d'un Stack au lieu d'une Column
-                        clipBehavior:
-                            Clip.none, // Permet au contenu de déborder du Stack
-                        children: [
-                          // Label au-dessus
-                          Positioned(
-                            bottom: 25, // Position au-dessus de l'icône
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: GlobalColors.primary,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                widget.land.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Icône de localisation
-                          const Positioned(
-                            bottom: 0,
-                            right: 0,
-                            left: 0,
-                            child: Icon(
-                              Icons.location_on,
-                              color: GlobalColors.primary,
-                              size: 25, // Taille légèrement réduite
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          child: _buildMap(),
         ),
+
+        // Boutons de contrôle
         Expanded(
           flex: 20,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildSimpleInfo(
-                    icon: Icons.location_on,
-                    label: 'Adresse',
-                    value: widget.land.location,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildSimpleInfo(
-                    icon: Icons.square_foot,
-                    label: 'Surface',
-                    value: '${widget.land.surface} m²',
-                  ),
-                ),
-              ],
-            ),
+          child: MapControlButtons(
+            onStartValidation: widget.onStartValidation,
+            onToggleRoute: _toggleRoute,
+            showRoute: showRoute,
+            loadingRoute: loadingRoute,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSimpleInfo({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 20,
-          color: GlobalColors.primary,
+  Widget _buildMap() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: FlutterMap(
+        mapController: mapController,
+        options: MapOptions(
+          center: LatLng(widget.land.latitude!, widget.land.longitude!),
+          zoom: 15,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
+        children: [
+          // Couche de tuiles (fond de carte)
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.flareline.app',
+            tileProvider: CancellableNetworkTileProvider(),
+          ),
+
+          // Couche d'itinéraire (si actif)
+          if (showRoute && route != null) RouteLayer(route: route!),
+
+          // Marqueur du terrain
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: LatLng(widget.land.latitude!, widget.land.longitude!),
+                width: 80,
+                height: 60,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Label du terrain
+                    Positioned(
+                      bottom: 25,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          widget.land.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Icône de localisation
+                    const Positioned(
+                      bottom: 0,
+                      right: 0,
+                      left: 0,
+                      child: Icon(
+                        Icons.location_on,
+                        color: Colors.deepPurple,
+                        size: 25,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

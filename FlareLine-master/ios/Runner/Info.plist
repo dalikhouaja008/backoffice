@@ -32,6 +32,10 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+    <string>Cette application a besoin d'accéder à votre position pour calculer l'itinéraire vers le terrain sélectionné.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Cette application a besoin d'accéder à votre position en arrière-plan pour vous fournir des mises à jour d'itinéraire en temps réel.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -45,5 +49,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	 <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>http</string>
+        <string>https</string>
+        <string>tel</string>
+        <string>mailto</string>
+        <string>comgooglemaps</string>
+        <string>maps</string>
+    </array>
+	 <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>remote-notification</string>
+    </array>
 </dict>
 </plist>
