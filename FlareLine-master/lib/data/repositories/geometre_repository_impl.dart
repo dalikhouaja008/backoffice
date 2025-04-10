@@ -1,92 +1,86 @@
-import 'package:dio/dio.dart';
-import 'package:flareline/data/models/land_model.dart';
-import 'package:flareline/data/models/validation_model.dart';
-import 'package:logger/logger.dart';
+import 'package:flareline/domain/entities/land_entity.dart';
+import 'package:flareline/domain/enums/validation_enums.dart';
+import 'package:flareline/domain/repositories/geometre_repository.dart';
+import 'package:flareline/domain/entities/validation_entity.dart';
+import 'package:flareline/data/datasources/geometre_remote_data_source.dart';
 
-class GeometreRemoteDataSource {
-  final Dio dio;
-  final Logger logger;
-  final String baseUrl;
+class GeometreRepositoryImpl implements GeometreRepository {
+  final GeometreRemoteDataSource remoteDataSource;
 
-  GeometreRemoteDataSource({
-    required this.dio,
-    required this.logger,
-    required this.baseUrl,
-  });
+  GeometreRepositoryImpl({required this.remoteDataSource});
 
-  Future<List<LandModel>> getPendingLands() async {
-    try {
-      logger.log(
-        Level.info,
-        'Fetching pending lands',
-        error: {
-          'timestamp': '2025-04-09 14:58:56',
-          'userLogin': 'dalikhouaja008',
-        },
-      );
+  @override
+  Future<List<Land>> getPendingLands() async {
+    // Simuler un délai réseau
+    await Future.delayed(const Duration(milliseconds: 500));
 
-      final response = await dio.get('$baseUrl/lands/pending');
-
-      if (response.statusCode == 200) {
-        final List<dynamic> landsJson = response.data['data'];
-        return landsJson.map((json) => LandModel.fromJson(json)).toList();
-      } else {
-        throw Exception('Failed to fetch pending lands');
-      }
-    } catch (e) {
-      logger.log(
-        Level.error,
-        'Error fetching pending lands',
-        error: {
-          'timestamp': '2025-04-09 14:58:56',
-          'userLogin': 'dalikhouaja008',
-        },
-      );
-      rethrow;
-    }
+    return [
+      Land(
+        id: 'LAND001',
+        title: 'Terrain Agricole - Sousse',
+        location: 'Sousse Nord',
+        surface: 5000.0,
+        status: LandValidationStatus.PENDING_VALIDATION,
+        blockchainLandId: '0x1234567890abcdef',
+        ownerId: 'OWNER001',
+        ownerAddress: '0xowner1',
+        totalTokens: 5000,
+        pricePerToken: '1.0',
+        ipfsCIDs: [],
+        imageCIDs: [],
+        validations: [],
+        updatedAt: DateTime.parse('2025-04-09'),
+        latitude: 35.8245, // Coordonnées de Sousse
+        longitude: 10.6346,
+      ),
+      Land(
+        id: 'LAND002',
+        title: 'Terrain Constructible - Sfax',
+        location: 'Sfax Centre',
+        surface: 2500.0,
+        status: LandValidationStatus.PARTIALLY_VALIDATED,
+        blockchainLandId: '0xabcdef1234567890',
+        ownerId: 'OWNER002',
+        ownerAddress: '0xowner2',
+        totalTokens: 2500,
+        pricePerToken: '2.0',
+        ipfsCIDs: [],
+        imageCIDs: [],
+        validations: [],
+        updatedAt: DateTime.parse('2025-04-09'),
+        latitude: 34.7406, // Coordonnées de Sfax
+        longitude: 10.7603,
+      ),
+      Land(
+        id: 'LAND003',
+        title: 'Terrain Industrial - Tunis',
+        location: 'Zone Industrielle',
+        surface: 10000.0,
+        status: LandValidationStatus.PENDING_VALIDATION,
+        blockchainLandId: '0x9876543210fedcba',
+        ownerId: 'OWNER003',
+        ownerAddress: '0xowner3',
+        totalTokens: 10000,
+        pricePerToken: '1.5',
+        ipfsCIDs: [],
+        imageCIDs: [],
+        validations: [],
+        updatedAt: DateTime.parse('2025-04-09'),
+        latitude: 35.8245, // Coordonnées de Sousse
+        longitude: 10.6346,
+      ),
+    ];
   }
 
-  Future<ValidationModel> validateLand({
+  @override
+  Future<ValidationEntity> validateLand({
     required String landId,
-    required bool isValidated,
-    String? comments,
-  }) async {
-    try {
-      logger.log(
-        Level.info,
-        'Validating land',
-        error: {
-          'landId': landId,
-          'isValidated': isValidated,
-          'timestamp': '2025-04-09 14:58:56',
-          'userLogin': 'dalikhouaja008',
-        },
-      );
-
-      final response = await dio.post(
-        '$baseUrl/lands/$landId/validate',
-        data: ValidationModel(
-          isValidated: isValidated,
-          comments: comments,
-        ).toJson(),
-      );
-
-      if (response.statusCode == 200) {
-        return ValidationModel.fromJson(response.data['data']);
-      } else {
-        throw Exception('Failed to validate land');
-      }
-    } catch (e) {
-      logger.log(
-        Level.error,
-        'Error validating land',
-        error:  {
-          'landId': landId,
-          'timestamp': '2025-04-09 14:58:56',
-          'userLogin': 'dalikhouaja008',
-        },
-      );
-      rethrow;
-    }
+    required ValidationEntity validation,
+  }) {
+    return remoteDataSource.validateLand(
+      landId: landId,
+      isValidated: validation.isValidated,
+      comments: validation.comments,
+    );
   }
 }

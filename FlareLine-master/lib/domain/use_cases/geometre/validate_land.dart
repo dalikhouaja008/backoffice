@@ -1,26 +1,22 @@
-import 'package:flareline/domain/entities/land_entity.dart';
+import 'package:flareline/domain/entities/validation_entity.dart';
 import 'package:flareline/domain/repositories/geometre_repository.dart';
 
-class ValidateLand {
+class ValidateLandUseCase {
   final GeometreRepository repository;
 
-  ValidateLand(this.repository);
+  ValidateLandUseCase({required this.repository});
 
-  Future<Land> call({
+  Future<ValidationEntity> call({
     required String landId,
-    required bool isValid,
-    required String comments,
-    required List<String> documents,
-    required double measuredSurface,
-    required DateTime visitDate,
-  }) async {
-    return await repository.validateLand(
+    required bool isValidated,
+    String? comments,
+  }) {
+    return repository.validateLand(
       landId: landId,
-      isValid: isValid,
-      comments: comments,
-      documents: documents,
-      measuredSurface: measuredSurface,
-      visitDate: visitDate,
+      validation: ValidationEntity(
+        isValidated: isValidated,
+        comments: comments,
+      ),
     );
   }
 }

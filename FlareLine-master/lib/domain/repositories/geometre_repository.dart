@@ -1,18 +1,11 @@
 import 'package:flareline/domain/entities/land_entity.dart';
+import 'package:flareline/domain/entities/validation_entity.dart';
 
 abstract class GeometreRepository {
-
   Future<List<Land>> getPendingLands();
   
-  Future<Land> validateLand({
+  Future<ValidationEntity> validateLand({
     required String landId,
-    required bool isValid,
-    required String comments,
-    required List<String> documents,
-    required double measuredSurface,
-    required DateTime visitDate,
+    required ValidationEntity validation,
   });
-  
-
-  
 }

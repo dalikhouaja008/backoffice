@@ -1,5 +1,5 @@
-// lib/features/geometre/presentation/bloc/geometre_bloc.dart
 import 'package:flareline/domain/use_cases/geometre/get_pending_lands.dart';
+import 'package:flareline/domain/use_cases/geometre/validate_land.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_event.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,14 +7,12 @@ import 'package:logger/logger.dart';
 
 class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
   final GetPendingLands getPendingLands;
-  final ValidateLand validateLand;
-  final UploadValidationDocument uploadDocument;
+  final ValidateLandUseCase validateLand;
   final Logger logger;
 
   GeometreBloc({
     required this.getPendingLands,
     required this.validateLand,
-    required this.uploadDocument,
     required this.logger,
   }) : super(GeometreInitial()) {
     on<LoadPendingLands>(_onLoadPendingLands);
@@ -22,7 +20,7 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
     on<SearchLands>(_onSearchLands);
     on<SelectLand>(_onSelectLand);
     on<ClearSelectedLand>(_onClearSelectedLand);
-    //on<ValidateLand>(_onValidateLand);
+    on<ValidateLand>(_onValidateLand);
   }
 
   Future<void> _onLoadPendingLands(
@@ -82,13 +80,22 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
     }
   }
 
-  void _onSelectLand(
-    SelectLand event,
-    Emitter<GeometreState> emit,
-  ) {
+ void _onSelectLand(SelectLand event, Emitter<GeometreState> emit) {
     if (state is GeometreLoaded) {
       final currentState = state as GeometreLoaded;
-      emit(currentState.copyWith(selectedLand: event.land));
+      
+      logger.log(
+        Level.info,
+        'Land selected in bloc',
+        error: {
+          'landId': event.land.id,
+        },
+      );
+
+      emit(GeometreLoaded(
+        lands: currentState.lands,
+        selectedLand: event.land,
+      ));
     }
   }
 
@@ -102,48 +109,51 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
     }
   }
 
-  /*Future<void> _onValidateLand(
+ Future<void> _onValidateLand(
     ValidateLand event,
     Emitter<GeometreState> emit,
   ) async {
     try {
       emit(ValidationInProgress(landId: event.landId));
 
-      final result = await validateLand(
-        ValidateLandParams(
-          id: event.id,
-          isValid: event.isValid,
-          comments: event.comments,
-          documents: event.documents,
-          measuredSurface: event.measuredSurface,
-          visitDate: event.visitDate,
-        ),
+      final validation = await validateLand.call(
+        landId: event.landId,
+        isValidated: event.isValid,
+        comments: event.comments,
       );
 
       logger.log(
-        Level.info, // Utilisez un niveau valide ici
+        Level.info,
         'Land validation successful',
         error: {
           'landId': event.landId,
-          'isValid': event.isValid,
-          'timestamp': '2025-04-06 20:40:33',
+          'timestamp': '2025-04-09 21:06:25',
           'userLogin': 'dalikhouaja008'
         },
       );
 
-      emit(ValidationSuccess(
-        land: result,
-        message: 'Validation effectuée avec succès',
-      ));
+      if (state is GeometreLoaded) {
+        final currentState = state as GeometreLoaded;
+        if (currentState.selectedLand != null) {
+          final updatedLand = currentState.selectedLand!.copyWith(
+            validations: [...currentState.selectedLand!.validations, validation],
+          );
 
-      add(RefreshLands());
+          emit(ValidationSuccess(
+            land: updatedLand,
+            message: 'Validation effectuée avec succès',
+          ));
+
+          add(RefreshLands());
+        }
+      }
     } catch (e) {
       logger.log(
         Level.error,
         'Error validating land',
         error: {
           'landId': event.landId,
-          'timestamp': DateTime.now().toIso8601String(),
+          'timestamp': '2025-04-09 21:06:25',
           'userLogin': 'dalikhouaja008'
         },
       );
@@ -153,23 +163,5 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
         landId: event.landId,
       ));
     }
-  }*/
-}
-
-class ValidateLandParams {
-  final String id;
-  final bool isValid;
-  final String? comments;
-  final List<String> documents;
-  final double? measuredSurface;
-  final DateTime visitDate;
-
-  ValidateLandParams({
-    required this.id,
-    required this.isValid,
-    this.comments,
-    required this.documents,
-    this.measuredSurface,
-    required this.visitDate,
-  });
+  }
 }

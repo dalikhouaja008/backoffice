@@ -1,5 +1,6 @@
 import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:flareline/data/models/validation_model.dart';
+import 'package:flareline/domain/enums/validation_enums.dart';
 
 class LandModel {
   final String id;

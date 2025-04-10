@@ -1,4 +1,5 @@
 import 'package:flareline/domain/entities/validation_entity.dart';
+import 'package:flareline/domain/enums/validation_enums.dart';
 
 class Land {
   final String id;
@@ -21,6 +22,7 @@ class Land {
   final List<ValidationEntity> validations;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  
 
   const Land({
     required this.id,
@@ -44,12 +46,50 @@ class Land {
     this.createdAt,
     this.updatedAt,
   });
-}
 
-enum LandValidationStatus {
-  PENDING_VALIDATION,
-  PARTIALLY_VALIDATED,
-  VALIDATED,
-  REJECTED,
-  TOKENIZED
+  Land copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? location,
+    double? surface,
+    int? totalTokens,
+    String? pricePerToken,
+    String? ownerId,
+    String? ownerAddress,
+    double? latitude,
+    double? longitude,
+    LandValidationStatus? status,
+    List<String>? ipfsCIDs,
+    List<String>? imageCIDs,
+    String? metadataCID,
+    String? blockchainTxHash,
+    String? blockchainLandId,
+    List<ValidationEntity>? validations,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Land(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      location: location ?? this.location,
+      surface: surface ?? this.surface,
+      totalTokens: totalTokens ?? this.totalTokens,
+      pricePerToken: pricePerToken ?? this.pricePerToken,
+      ownerId: ownerId ?? this.ownerId,
+      ownerAddress: ownerAddress ?? this.ownerAddress,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      status: status ?? this.status,
+      ipfsCIDs: ipfsCIDs ?? this.ipfsCIDs,
+      imageCIDs: imageCIDs ?? this.imageCIDs,
+      metadataCID: metadataCID ?? this.metadataCID,
+      blockchainTxHash: blockchainTxHash ?? this.blockchainTxHash,
+      blockchainLandId: blockchainLandId ?? this.blockchainLandId,
+      validations: validations ?? this.validations,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }

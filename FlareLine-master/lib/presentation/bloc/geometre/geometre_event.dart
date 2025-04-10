@@ -38,17 +38,11 @@ class ValidateLand extends GeometreEvent {
   final String landId;
   final bool isValid;
   final String comments;
-  final List<String> documents;
-  final double measuredSurface;
-  final DateTime visitDate;
 
   const ValidateLand({
     required this.landId,
     required this.isValid,
     required this.comments,
-    required this.documents,
-    required this.measuredSurface,
-    required this.visitDate,
   });
 
   @override
@@ -56,9 +50,6 @@ class ValidateLand extends GeometreEvent {
     landId,
     isValid,
     comments,
-    documents,
-    measuredSurface,
-    visitDate,
   ];
 }
 

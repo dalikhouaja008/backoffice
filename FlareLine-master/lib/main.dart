@@ -1,3 +1,4 @@
+import 'package:flareline/core/injection/injection.dart';
 import 'package:flareline/core/theme/global_theme.dart';
 import 'package:flareline_uikit/service/localization_provider.dart';
 import 'package:flareline/routes.dart';
@@ -11,7 +12,8 @@ import 'package:window_manager/window_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  WidgetsFlutterBinding.ensureInitialized();
+  setupInjection();
   await GetStorage.init();
 
   if (GetPlatform.isDesktop && !GetPlatform.isWeb) {
