@@ -5,7 +5,7 @@ import 'package:flareline/presentation/pages/table/contacts_page.dart' deferred 
 import 'package:flareline/presentation/pages/toast/toast_page.dart' deferred as toast;
 import 'package:flareline/presentation/pages/tools/tools_page.dart' deferred as tools;
 import 'package:flutter/material.dart';
-import 'package:flareline/presentation/pages/alerts/alert_page.dart' deferred as alert;
+//import 'package:flareline/presentation/pages/alerts/alert_page.dart' deferred as alert;
 import 'package:flareline/presentation/pages/button/button_page.dart' deferred as button;
 import 'package:flareline/presentation/pages/form/form_elements_page.dart' deferred as formElements;
 import 'package:flareline/presentation/pages/form/form_layout_page.dart' deferred as formLayout;
@@ -44,7 +44,7 @@ final List<Map<String, Object>> MAIN_PAGES = [
   {'routerPath': '/settings', 'widget': DeferredWidget(settings.loadLibrary, () => settings.SettingsPage())},
   {'routerPath': '/basicChart', 'widget': DeferredWidget(chart.loadLibrary, () => chart.ChartPage())},
   {'routerPath': '/buttons', 'widget': DeferredWidget(button.loadLibrary, () => button.ButtonPage())},
-  {'routerPath': '/alerts', 'widget': DeferredWidget(alert.loadLibrary, () => alert.AlertPage())},
+  //{'routerPath': '/alerts', 'widget': DeferredWidget(alert.loadLibrary, () => alert.AlertPage())},
   {'routerPath': '/contacts', 'widget': DeferredWidget(contacts.loadLibrary, () => contacts.ContactsPage())},
   {'routerPath': '/tools', 'widget': DeferredWidget(tools.loadLibrary, () => tools.ToolsPage())},
   {'routerPath': '/toast', 'widget': DeferredWidget(toast.loadLibrary, () => toast.ToastPage())},
