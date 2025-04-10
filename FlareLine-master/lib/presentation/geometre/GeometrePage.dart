@@ -28,6 +28,7 @@ class GeometrePage extends LayoutWidget {
       child: const GeometreContent(),
     );
   }
+
 }
 
 class GeometreContent extends StatelessWidget {

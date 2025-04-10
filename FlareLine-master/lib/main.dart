@@ -4,6 +4,7 @@ import 'package:flareline_uikit/service/localization_provider.dart';
 import 'package:flareline/routes.dart';
 import 'package:flareline_uikit/service/theme_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';  // Ajoutez cet import
 import 'package:flareline/flutter_gen/app_localizations.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -11,11 +12,35 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 void main() async {
+  // Assurez-vous que Flutter est initialisé
   WidgetsFlutterBinding.ensureInitialized();
-  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialiser l'injection de dépendances
   setupInjection();
+  
+  // Initialiser le stockage
   await GetStorage.init();
 
+  // Configuration pour les appareils mobiles
+  if (GetPlatform.isMobile) {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+    );
+  }
+
+  // Configuration pour desktop
   if (GetPlatform.isDesktop && !GetPlatform.isWeb) {
     await windowManager.ensureInitialized();
 
@@ -25,15 +50,17 @@ void main() async {
       center: true,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
-      // titleBarStyle: TitleBarStyle.hidden,
     );
+    
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
     });
   }
 
-  runApp(MyApp());
+  // Lancer l'application avec le wrapper GetMaterialApp plutôt que MaterialApp
+  // pour initialiser correctement Get
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -42,39 +69,53 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => ThemeProvider(_)),
-          //theme
-          ChangeNotifierProvider(create: (_) => LocalizationProvider(_)),
-          //localizationen ai
-        ],
-        child: Builder(builder: (context) {
-          context.read<LocalizationProvider>().supportedLocales =
-              AppLocalizations.supportedLocales;
-          return MaterialApp(
-            navigatorKey: RouteConfiguration.navigatorKey,
-            restorationScopeId: 'rootFlareLine',
-            title: 'The boost',
-            debugShowCheckedModeBanner: false,
-            initialRoute: '/',
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            locale: context.watch<LocalizationProvider>().locale,
-            supportedLocales: AppLocalizations.supportedLocales,
-            onGenerateRoute: (settings) =>
-                RouteConfiguration.onGenerateRoute(settings),
-            themeMode: context.watch<ThemeProvider>().isDark
-                ? ThemeMode.dark
-                : ThemeMode.light,
-            theme: GlobalTheme.lightThemeData,
-            darkTheme: GlobalTheme.darkThemeData,
-            builder: (context, widget) {
-              return MediaQuery(
-                data: MediaQuery.of(context)
-                    .copyWith(textScaler: TextScaler.noScaling),
-                child: widget!,
-              );
-            },
-          );
-        }));
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider(_)),
+        ChangeNotifierProvider(create: (_) => LocalizationProvider(_)),
+      ],
+      child: Builder(builder: (context) {
+        context.read<LocalizationProvider>().supportedLocales =
+            AppLocalizations.supportedLocales;
+            
+        return MaterialApp(
+          navigatorKey: RouteConfiguration.navigatorKey,
+          restorationScopeId: 'rootFlareLine',
+          title: 'The boost',
+          debugShowCheckedModeBanner: false,
+          initialRoute: '/',
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          locale: context.watch<LocalizationProvider>().locale,
+          supportedLocales: AppLocalizations.supportedLocales,
+          
+          onGenerateRoute: (settings) =>
+              RouteConfiguration.onGenerateRoute(settings),
+          themeMode: context.watch<ThemeProvider>().isDark
+              ? ThemeMode.dark
+              : ThemeMode.light,
+          theme: GlobalTheme.lightThemeData,
+          darkTheme: GlobalTheme.darkThemeData,
+          builder: (context, widget) {
+            // Utiliser un builder responsive amélioré
+            final mediaQuery = MediaQuery.of(context);
+            final isSmallScreen = mediaQuery.size.width < 600;
+            
+            return MediaQuery(
+              data: mediaQuery.copyWith(
+                textScaler: TextScaler.noScaling,
+                // Ajuster le padding pour les petits écrans mobiles
+                padding: isSmallScreen 
+                  ? mediaQuery.padding.copyWith(
+                      // Réduire le padding pour maximiser l'espace sur petit écran
+                      left: mediaQuery.padding.left * 0.8,
+                      right: mediaQuery.padding.right * 0.8,
+                    ) 
+                  : mediaQuery.padding,
+              ),
+              child: widget!,
+            );
+          },
+        );
+      }),
+    );
   }
 }
