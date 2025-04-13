@@ -14,7 +14,7 @@ class LandsList extends StatelessWidget {
   LandsList({super.key});
 
   final logger = Logger();
-  
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<GeometreBloc, GeometreState>(
@@ -109,7 +109,7 @@ class LandsList extends StatelessWidget {
       child: InkWell(
         onTap: () {
           context.read<GeometreBloc>().add(SelectLand(land: land));
-          
+
           getIt<Logger>().log(
             Level.info,
             'Land item tapped',
@@ -125,7 +125,9 @@ class LandsList extends StatelessWidget {
             color: isSelected ? GlobalColors.primary.withOpacity(0.1) : null,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isSelected ? GlobalColors.primary : Colors.grey.withOpacity(0.2),
+              color: isSelected
+                  ? GlobalColors.primary
+                  : Colors.grey.withOpacity(0.2),
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -147,7 +149,7 @@ class LandsList extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              
+
               // Informations principales
               Expanded(
                 child: Column(
@@ -180,7 +182,7 @@ class LandsList extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              
+
               // Status et ID
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -188,7 +190,7 @@ class LandsList extends StatelessWidget {
                   _buildStatusChip(land.status),
                   const SizedBox(height: 8),
                   Text(
-                    'ID: ${land.blockchainLandId.substring(0, 8)}...',
+                    'ID: ${land.blockchainLandId.length > 8 ? "${land.blockchainLandId.substring(0, 8)}..." : land.blockchainLandId}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: Colors.grey,
@@ -250,7 +252,4 @@ class LandsList extends StatelessWidget {
         return GlobalColors.primary;
     }
   }
-
-
-
 }
