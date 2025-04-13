@@ -37,7 +37,7 @@ class RouteLayer extends StatelessWidget {
               color: Colors.blue.shade600,
               borderColor: Colors.blue.shade900,
               borderStrokeWidth: isSmallScreen ? 0.5 : 1.0,
-              isDotted: false,
+              //isDotted: false,
               gradientColors: [
                 Colors.blue.shade400,
                 Colors.blue.shade700,

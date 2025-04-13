@@ -98,6 +98,51 @@ class _LandMapViewState extends State<LandMapView> {
     super.dispose();
   }
 
+    @override
+  void didUpdateWidget(LandMapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Si le terrain a changé, mettre à jour la carte
+    if (oldWidget.land.id != widget.land.id) {
+      getIt<Logger>().log(
+        Level.info,
+        'Terrain changé de ${oldWidget.land.id} à ${widget.land.id}',
+      );
+      
+      // Réinitialiser l'état
+      setState(() {
+        currentUserLocation = null;
+        route = null;
+        showRoute = false;
+        isTrackingLocation = false;
+      });
+      
+      // Centrer la carte sur le nouveau terrain
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          if (widget.land.latitude != null && widget.land.longitude != null) {
+            final terrainPosition = LatLng(widget.land.latitude!, widget.land.longitude!);
+            mapController.move(terrainPosition, 15.0);
+            
+            getIt<Logger>().log(
+              Level.info,
+              'Carte centrée sur le nouveau terrain: ${terrainPosition.latitude}, ${terrainPosition.longitude}',
+            );
+            
+            // Obtenir une nouvelle position simulée ou réelle
+            _getCurrentLocation(showError: false);
+          }
+        } catch (e) {
+          getIt<Logger>().log(
+            Level.error,
+            'Erreur lors du déplacement de la carte vers le nouveau terrain',
+            error: e.toString(),
+          );
+        }
+      });
+    }
+  }
+
   // Méthode pour obtenir la position actuelle de l'utilisateur
   Future<void> _getCurrentLocation({bool showError = true}) async {
     try {
