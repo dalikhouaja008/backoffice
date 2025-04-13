@@ -13,44 +13,96 @@ class GeometreRemoteDataSource {
   GeometreRemoteDataSource({
     required this.dio,
     required this.logger,
-    required this.baseUrl,
+    this.baseUrl = 'http://localhost:5000', 
   });
 
   Future<List<Land>> getPendingLands() async {
-    try {
-      logger.log(
-        Level.info,
-        'Fetching pending lands',
-        error: {
-          'timestamp': '2025-04-09 20:48:37',
-          'userLogin': 'dalikhouaja008',
-        },
+  try {
+    logger.i('GeometreRemoteDataSource: Récupération des terrains sans validation ');
+
+    // Appel API existant...
+    final response = await dio.get('$baseUrl/lands/without-geometer-validation');
+    
+    if (response.statusCode == 200) {
+      final responseData = response.data;
+      
+      // Log de la réponse brute
+      logger.d(
+        ' GeometreRemoteDataSource: Réponse brute reçue'
+
       );
-
-      final response = await dio.get('$baseUrl/lands/pending');
-
-      if (response.statusCode == 200) {
-        final List<dynamic> landsJson = response.data['data'];
-        final List<LandModel> landModels = landsJson
-            .map((json) => LandModel.fromJson(json))
-            .toList();
-        return LandMapper.toEntityList(landModels);
-      } else {
-        throw Exception('Failed to fetch pending lands');
+      
+      // Adapter au format de réponse de votre API
+      final List<dynamic> landsJson = responseData is List 
+          ? responseData 
+          : responseData is Map && responseData['data'] is List 
+              ? responseData['data'] 
+              : [];
+      
+      // Log du nombre de terrains récupérés
+      logger.i(
+        'GeometreRemoteDataSource: ${landsJson.length} terrains récupérés'
+      );
+      
+      // Log détaillé de chaque terrain
+      for (int i = 0; i < landsJson.length; i++) {
+        logger.d(
+          '[2025-04-13 22:12:39] GeometreRemoteDataSource: Détails du terrain #${i + 1}',
+          error: {
+            'id': landsJson[i]['_id'] ?? landsJson[i]['id'] ?? 'ID non disponible',
+            'title': landsJson[i]['title'] ?? 'Titre non disponible',
+            'location': landsJson[i]['location'] ?? 'Lieu non disponible',
+            'status': landsJson[i]['status'] ?? 'Statut non disponible',
+            'blockchainLandId': landsJson[i]['blockchainLandId'] ?? 'ID blockchain non disponible',
+            'hasValidations': landsJson[i]['validations'] != null && landsJson[i]['validations'] is List,
+            'validationsCount': landsJson[i]['validations'] is List ? landsJson[i]['validations'].length : 0,
+          }
+        );
       }
-    } catch (e) {
-      logger.log(
-        Level.error,
-        'Error fetching pending lands',
+      
+      // Conversion en modèles
+      final List<LandModel> landModels = landsJson
+          .map((json) => LandModel.fromJson(json))
+          .toList();
+          
+      // Log des modèles créés
+      logger.d(
+        '[2025-04-13 22:12:39] GeometreRemoteDataSource: ${landModels.length} modèles de terrains créés',
         error: {
-          'timestamp': '2025-04-09 20:48:37',
-          'userLogin': 'dalikhouaja008',
-        },
+          'firstLandTitle': landModels.isNotEmpty ? landModels[0].title : 'Aucun terrain',
+        }
       );
-      rethrow;
+      
+      // Conversion en entités
+      final entities = LandMapper.toEntityList(landModels);
+      
+      // Log des entités créées
+      logger.i(
+        'GeometreRemoteDataSource: ${entities.length} entités de terrains créées - User: nesssim'
+      );
+      
+      return entities;
+    } else {
+      // Log d'erreur HTTP
+      logger.e(
+        'GeometreRemoteDataSource: Erreur HTTP ${response.statusCode}',
+        error: {
+          'statusMessage': response.statusMessage,
+          'responseData': response.data,
+        }
+      );
+      throw Exception('Failed to fetch lands: ${response.statusCode} - ${response.statusMessage}');
     }
+  } catch (e, stack) {
+    // Log d'erreur avec stack trace
+    logger.e(
+      '[2025-04-13 22:12:39] GeometreRemoteDataSource: Erreur lors de la récupération des terrains'
+    );
+    rethrow;
   }
-
+}
+  
+  
   Future<ValidationEntity> validateLand({
     required String landId,
     required bool isValidated,
@@ -59,30 +111,40 @@ class GeometreRemoteDataSource {
     try {
       logger.log(
         Level.info,
-        'Validating land',
+        'Validating land as geometer',
         error: {
           'landId': landId,
           'isValidated': isValidated,
-          'timestamp': '2025-04-09 20:48:37',
-          'userLogin': 'dalikhouaja008',
         },
       );
 
+      final validationRequest = {
+        'landId': landId,
+        'isValidated': isValidated,
+        'comments': comments ?? '',
+      };
+
       final response = await dio.post(
-        '$baseUrl/lands/$landId/validate',
-        data: {
-          'isValidated': isValidated,
-          'comments': comments,
-        },
+        '$baseUrl/lands/validate',
+        data: validationRequest,
       );
 
       if (response.statusCode == 200) {
+        logger.log(
+          Level.info,
+          'Land validation successful',
+          error: {
+            'landId': landId,
+            'response': response.data,
+          },
+        );
+        
         return ValidationEntity(
-          isValidated: response.data['data']['isValidated'],
-          comments: response.data['data']['comments'],
+          isValidated: isValidated,
+          comments: comments,
         );
       } else {
-        throw Exception('Failed to validate land');
+        throw Exception('Failed to validate land: ${response.statusCode}');
       }
     } catch (e) {
       logger.log(
@@ -90,8 +152,7 @@ class GeometreRemoteDataSource {
         'Error validating land',
         error: {
           'landId': landId,
-          'timestamp': '2025-04-09 20:48:37',
-          'userLogin': 'dalikhouaja008',
+          'error': e.toString(),
         },
       );
       rethrow;

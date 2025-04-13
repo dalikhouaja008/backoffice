@@ -1,3 +1,4 @@
+// lib/data/models/land_model.dart
 import 'package:flareline/data/models/validation_model.dart';
 import 'package:flareline/domain/enums/validation_enums.dart';
 
@@ -7,13 +8,15 @@ class LandModel {
   final String? description;
   final String location;
   final double surface;
-  final int totalTokens;
-  final String pricePerToken;
+  final int? totalTokens;
+  final String? pricePerToken;
+  final String? priceland;  
   final String ownerId;
   final String ownerAddress;
   final double? latitude;
   final double? longitude;
   final LandValidationStatus status;
+  final String landtype;  
   final List<String> ipfsCIDs;
   final List<String> imageCIDs;
   final String? metadataCID;
@@ -22,6 +25,7 @@ class LandModel {
   final List<ValidationModel> validations;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final Map<String, bool>? amenities;  // Ajouté selon le schéma
 
   const LandModel({
     required this.id,
@@ -29,13 +33,15 @@ class LandModel {
     this.description,
     required this.location,
     required this.surface,
-    required this.totalTokens,
-    required this.pricePerToken,
+    this.totalTokens,
+    this.pricePerToken,
+    this.priceland,
     required this.ownerId,
     required this.ownerAddress,
     this.latitude,
     this.longitude,
     required this.status,
+    required this.landtype,
     required this.ipfsCIDs,
     required this.imageCIDs,
     this.metadataCID,
@@ -44,34 +50,38 @@ class LandModel {
     required this.validations,
     this.createdAt,
     this.updatedAt,
+    this.amenities,
   });
 
   factory LandModel.fromJson(Map<String, dynamic> json) {
     return LandModel(
-      id: json['_id'],
-      title: json['title'],
+      id: json['_id'] ?? json['id'] ?? '',
+      title: json['title'] ?? '',
       description: json['description'],
-      location: json['location'],
-      surface: json['surface'].toDouble(),
+      location: json['location'] ?? '',
+      surface: _parseDouble(json['surface']),
       totalTokens: json['totalTokens'],
       pricePerToken: json['pricePerToken'],
-      ownerId: json['ownerId'],
-      ownerAddress: json['ownerAddress'],
-      latitude: json['latitude']?.toDouble(),
-      longitude: json['longitude']?.toDouble(),
-      status: _parseValidationStatus(json['status']),
-      ipfsCIDs: List<String>.from(json['ipfsCIDs'] ?? []),
-      imageCIDs: List<String>.from(json['imageCIDs'] ?? []),
+      priceland: json['priceland'],
+      ownerId: json['ownerId'] ?? '',
+      ownerAddress: json['ownerAddress'] ?? '',
+      latitude: _parseDouble(json['latitude']),
+      longitude: _parseDouble(json['longitude']),
+      status: _parseValidationStatus(json['status'] ?? 'pending_validation'),
+      landtype: json['landtype'] ?? 'unknown',
+      ipfsCIDs: _parseStringList(json['ipfsCIDs']),
+      imageCIDs: _parseStringList(json['imageCIDs']),
       metadataCID: json['metadataCID'],
       blockchainTxHash: json['blockchainTxHash'],
-      blockchainLandId: json['blockchainLandId'],
-      validations: _parseValidations(json['validations'] ?? []),
+      blockchainLandId: json['blockchainLandId']?.toString() ?? '0',
+      validations: _parseValidations(json['validations']),
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt']) 
           : null,
       updatedAt: json['updatedAt'] != null 
           ? DateTime.parse(json['updatedAt']) 
           : null,
+      amenities: _parseAmenities(json['amenities']),
     );
   }
 
@@ -84,11 +94,13 @@ class LandModel {
       'surface': surface,
       'totalTokens': totalTokens,
       'pricePerToken': pricePerToken,
+      'priceland': priceland,
       'ownerId': ownerId,
       'ownerAddress': ownerAddress,
       'latitude': latitude,
       'longitude': longitude,
       'status': status.toString().split('.').last.toLowerCase(),
+      'landtype': landtype,
       'ipfsCIDs': ipfsCIDs,
       'imageCIDs': imageCIDs,
       'metadataCID': metadataCID,
@@ -97,11 +109,70 @@ class LandModel {
       'validations': validations.map((v) => v.toJson()).toList(),
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'amenities': amenities,
     };
   }
 
-  static List<ValidationModel> _parseValidations(List<dynamic> validations) {
-    return validations.map((v) => ValidationModel.fromJson(v)).toList();
+  // Méthodes utilitaires pour le parsing robuste
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      try {
+        return double.parse(value);
+      } catch (e) {
+        return 0.0;
+      }
+    }
+    return 0.0;
+  }
+
+  static List<String> _parseStringList(dynamic value) {
+    if (value == null) return [];
+    if (value is List) {
+      return value.map((item) => item.toString()).toList();
+    }
+    return [];
+  }
+
+  static List<ValidationModel> _parseValidations(dynamic validations) {
+    if (validations == null) return [];
+    if (validations is List) {
+      return validations.map((v) => ValidationModel.fromJson(v)).toList();
+    }
+    return [];
+  }
+
+  static Map<String, bool>? _parseAmenities(dynamic amenities) {
+    if (amenities == null) return null;
+    
+    // Si c'est déjà une Map<String, bool>
+    if (amenities is Map<String, bool>) return amenities;
+    
+    // Si c'est une Map mais pas du bon type
+    if (amenities is Map) {
+      try {
+        return Map<String, bool>.from(amenities);
+      } catch (e) {
+        // Si la conversion échoue, créer une nouvelle map
+        final result = <String, bool>{};
+        amenities.forEach((key, value) {
+          if (key is String) {
+            if (value is bool) {
+              result[key] = value;
+            } else if (value is String) {
+              result[key] = value.toLowerCase() == 'true';
+            } else if (value is num) {
+              result[key] = value != 0;
+            }
+          }
+        });
+        return result;
+      }
+    }
+    
+    return null;
   }
 
   static LandValidationStatus _parseValidationStatus(String status) {

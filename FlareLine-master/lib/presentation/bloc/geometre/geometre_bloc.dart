@@ -29,28 +29,34 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
   ) async {
     try {
       emit(GeometreLoading());
-      final lands = await getPendingLands();
-      emit(GeometreLoaded(lands: lands));
 
+      // Log de début
       logger.log(
         Level.info,
-        'Lands loaded successfully',
-        error: {
-          'count': lands.length,
-          'timestamp': DateTime.now().toIso8601String(),
-          'userLogin': 'dalikhouaja008'
-        },
+        'Chargement des terrains en attente de validation du géomètre',
+
       );
+
+      final lands = await getPendingLands();
+
+      // Log de succès
+      logger.log(
+        Level.info,
+        ' ${lands.length} terrains chargés avec succès',
+        error: {'count': lands.length, },
+      );
+
+      emit(GeometreLoaded(lands: lands));
     } catch (e) {
+      // Log d'erreur détaillé
       logger.log(
         Level.error,
-        'Error loading lands',
-        error: {
-          'timestamp': DateTime.now().toIso8601String(),
-          'userLogin': 'dalikhouaja008'
-        },
+        '[2025-04-13 19:52:08] Erreur lors du chargement des terrains',
+        error: {'error': e.toString(), 'userLogin': 'nesssim'},
       );
-      emit(GeometreError(message: 'Erreur lors du chargement des terrains'));
+
+      emit(GeometreError(
+          message: 'Erreur lors du chargement des terrains: ${e.toString()}'));
     }
   }
 
@@ -80,10 +86,10 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
     }
   }
 
- void _onSelectLand(SelectLand event, Emitter<GeometreState> emit) {
+  void _onSelectLand(SelectLand event, Emitter<GeometreState> emit) {
     if (state is GeometreLoaded) {
       final currentState = state as GeometreLoaded;
-      
+
       logger.log(
         Level.info,
         'Land selected in bloc',
@@ -109,7 +115,7 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
     }
   }
 
- Future<void> _onValidateLand(
+  Future<void> _onValidateLand(
     ValidateLand event,
     Emitter<GeometreState> emit,
   ) async {
@@ -136,7 +142,10 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
         final currentState = state as GeometreLoaded;
         if (currentState.selectedLand != null) {
           final updatedLand = currentState.selectedLand!.copyWith(
-            validations: [...currentState.selectedLand!.validations, validation],
+            validations: [
+              ...currentState.selectedLand!.validations,
+              validation
+            ],
           );
 
           emit(ValidationSuccess(

@@ -12,11 +12,13 @@ class LandMapper {
       surface: model.surface,
       totalTokens: model.totalTokens,
       pricePerToken: model.pricePerToken,
+      priceland: model.priceland,
       ownerId: model.ownerId,
       ownerAddress: model.ownerAddress,
       latitude: model.latitude,
       longitude: model.longitude,
       status: model.status,
+      landtype: model.landtype,
       ipfsCIDs: model.ipfsCIDs,
       imageCIDs: model.imageCIDs,
       metadataCID: model.metadataCID,
@@ -25,6 +27,7 @@ class LandMapper {
       validations: model.validations.map(ValidationMapper.toEntity).toList(),
       createdAt: model.createdAt,
       updatedAt: model.updatedAt,
+      amenities: model.amenities,
     );
   }
 
@@ -37,11 +40,13 @@ class LandMapper {
       surface: entity.surface,
       totalTokens: entity.totalTokens,
       pricePerToken: entity.pricePerToken,
+      priceland: entity.priceland,
       ownerId: entity.ownerId,
       ownerAddress: entity.ownerAddress,
       latitude: entity.latitude,
       longitude: entity.longitude,
       status: entity.status,
+      landtype: entity.landtype,
       ipfsCIDs: entity.ipfsCIDs,
       imageCIDs: entity.imageCIDs,
       metadataCID: entity.metadataCID,
@@ -50,6 +55,7 @@ class LandMapper {
       validations: entity.validations.map(ValidationMapper.toModel).toList(),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
+      amenities: entity.amenities,
     );
   }
 
