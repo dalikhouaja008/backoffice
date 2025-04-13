@@ -12,11 +12,12 @@ abstract class AuthRemoteDataSource {
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
-
+ final GraphQLService graphQLService;
+  final SecureStorageService secureStorage;
 
   AuthRemoteDataSourceImpl({
-    required GraphQLClient client,
-    required SecureStorageService secureStorage,
+    required this.graphQLService,  // Injecter GraphQLService au lieu du client
+    required this.secureStorage,
   });
 
  Future<LoginResponse> login(String email, String password) async {
@@ -25,7 +26,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         '\n└─ Email: $email'
         '\n└─ Timestamp: $timestamp');
 
-  final GraphQLClient client = GraphQLService.client;
+    final GraphQLClient client = GraphQLService.client;
 
   const String loginMutation = """
     mutation Login(\$credentials: LoginInput!) {

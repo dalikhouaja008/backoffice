@@ -2,6 +2,8 @@ library flareline_uikit;
 
 import 'dart:async';
 
+
+import 'package:flareline_uikit/core/event/event_info.dart';
 import 'package:flareline_uikit/core/event/global_event.dart';
 import 'package:flareline_uikit/core/mvvm/bloc/bloc_base_state.dart';
 import 'package:flutter/material.dart';
