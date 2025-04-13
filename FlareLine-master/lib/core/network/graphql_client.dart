@@ -1,33 +1,44 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:graphql_flutter/graphql_flutter.dart';
-import 'dart:html' if (dart.library.html) 'package:universal_html/html.dart' as html;
+import 'package:universal_html/html.dart' as html;
 
 class GraphQLService {
-
+  static const String _timestamp = '2025-04-13 17:44:34';
+  static const String _user = 'nesssim';
   static const String _graphqlEndpoint = 'http://localhost:3000/graphql';
 
   static String _getUserAgent() {
     try {
       if (kIsWeb) {
-        return html.window.navigator.userAgent;
-      } else if (Platform.isAndroid) {
+        // Utiliser un bloc try-catch spécifique pour l'accès web
+        try {
+          return html.window.navigator.userAgent;
+        } catch (e) {
+          print('[$_timestamp] GraphQLService: ⚠️ Error accessing navigator'
+                '\n└─ Error: $e'
+                '\n└─ User: $_user');
+          return 'Flutter/Web';
+        }
+      } else if (!kIsWeb && Platform.isAndroid) {
         return 'Flutter/Android';
-      } else if (Platform.isIOS) {
+      } else if (!kIsWeb && Platform.isIOS) {
         return 'Flutter/iOS';
       }
       return 'Flutter/Unknown';
     } catch (e) {
-      print('GraphQLService: ⚠️ Error getting user agent'
-            '\n└─ Error: $e');
+      print('[$_timestamp] GraphQLService: ⚠️ Error getting user agent'
+            '\n└─ Error: $e'
+            '\n└─ User: $_user');
       return 'Flutter/Unknown';
     }
   }
 
   static Map<String, String> _getDefaultHeaders() {
     final userAgent = _getUserAgent();
-    print(' GraphQLService: 📱 Setting up headers'
-          '\n└─ User-Agent: $userAgent');
+    print('[$_timestamp] GraphQLService: 📱 Setting up headers'
+          '\n└─ User-Agent: $userAgent'
+          '\n└─ User: $_user');
     
     return {
       'User-Agent': userAgent,

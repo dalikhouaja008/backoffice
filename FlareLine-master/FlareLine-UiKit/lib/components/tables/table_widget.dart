@@ -4,6 +4,7 @@ import 'package:flareline_uikit/components/card/common_card.dart';
 import 'package:flareline_uikit/components/forms/switch_widget.dart';
 import 'package:flareline_uikit/components/loading/loading.dart';
 import 'package:flareline_uikit/components/tags/tag_widget.dart';
+import 'package:flareline_uikit/core/event/event_info.dart';
 import 'package:flareline_uikit/core/event/global_event.dart';
 import 'package:flareline_uikit/core/mvvm/base_viewmodel.dart';
 import 'package:flareline_uikit/core/mvvm/base_widget.dart';

@@ -1,6 +1,7 @@
 library flareline_uikit;
 import 'dart:async';
 
+import 'package:flareline_uikit/core/event/event_info.dart';
 import 'package:flareline_uikit/core/event/global_event.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
