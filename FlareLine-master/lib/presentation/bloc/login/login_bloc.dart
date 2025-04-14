@@ -5,8 +5,6 @@ import 'package:flareline/presentation/bloc/login/login_state.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 
-
-
 part 'login_event.dart';
 
 class LoginBloc extends Bloc<LoginEvent, LoginState> {
@@ -22,11 +20,10 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
         _secureStorage = secureStorage,
         _sessionService = sessionService,
         super(LoginInitial()) {
-
     on<LoginRequested>(_onLoginRequested);
     on<LogoutRequested>(_onLogoutRequested);
     on<CheckSession>(_onCheckSession);
-    
+
     // Automatically check for existing session when bloc is created
     add(CheckSession());
   }
@@ -37,21 +34,21 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
   ) async {
     print('LoginBloc: 🔍 Checking for existing session');
     emit(LoginLoading());
-    
+
     try {
       final sessionData = await _sessionService.getSession();
-      
+
       if (sessionData != null) {
         print('LoginBloc: ✅ Found existing session'
-              '\n└─ User: ${sessionData.user.username}'
-              '\n└─ Email: ${sessionData.user.email}');
-        
+            '\n└─ User: ${sessionData.user.username}'
+            '\n└─ Email: ${sessionData.user.email}');
+
         // Restore tokens to secure storage
         await _secureStorage.saveTokens(
           accessToken: sessionData.accessToken,
           refreshToken: sessionData.refreshToken,
         );
-        
+
         // Emit logged in state
         emit(LoginSuccess(user: sessionData.user));
       } else {
@@ -60,7 +57,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
       }
     } catch (e) {
       print('LoginBloc: ❌ Error checking session'
-            '\n└─ Error: $e');
+          '\n└─ Error: $e');
       emit(LoginInitial());
     }
   }
@@ -91,14 +88,14 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
 
       if (response.accessToken != null && response.refreshToken != null) {
         print('LoginBloc: ✅ Login successful'
-              '\n└─ Email: ${response.user.email}');
+            '\n└─ Email: ${response.user.email}');
 
         // Save tokens to secure storage
         await _secureStorage.saveTokens(
           accessToken: response.accessToken!,
           refreshToken: response.refreshToken!,
         );
-        
+
         // Save session data
         await _sessionService.saveSession(
           user: response.user!,
@@ -112,7 +109,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
       }
     } catch (e) {
       print('LoginBloc: ❌ Login failed'
-            '\n└─ Error: $e');
+          '\n└─ Error: $e');
       emit(LoginFailure(e.toString()));
     }
   }
@@ -122,13 +119,13 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
     Emitter<LoginState> emit,
   ) async {
     print('LoginBloc: 🔄 Logout initiated');
-    
+
     // Clear secure storage
     await _secureStorage.deleteTokens();
-    
+
     // Clear session
     await _sessionService.clearSession();
-    
+
     emit(LoginInitial());
     print('LoginBloc: ✅ Logout successful');
   }

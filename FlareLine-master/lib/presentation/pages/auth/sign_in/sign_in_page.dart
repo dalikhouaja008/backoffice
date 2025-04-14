@@ -96,7 +96,7 @@ class _SignInWidgetState extends State<SignInWidget> {
                 '\n└─ Username: ${state.user.username}');
 
             // Redirection vers la page principale après connexion réussie
-            Navigator.of(context).pushReplacementNamed('/');
+             Navigator.of(context).pushReplacementNamed(state.initialRoute);
 
             // Notification à l'utilisateur
             toastification.show(

@@ -1,3 +1,4 @@
+import 'package:flareline/core/extensions/string_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flareline/core/theme/global_colors.dart';
@@ -95,7 +96,7 @@ class _LandValidationFormState extends State<LandValidationForm> {
               validatedAmenities: _validatedAmenities,
               onAmenitiesChanged: (newAmenities) {
                 setState(() {
-                    _updateAmenities(newAmenities);
+                  _updateAmenities(newAmenities);
                 });
               },
             ),
@@ -188,20 +189,47 @@ class _LandValidationFormState extends State<LandValidationForm> {
 
   /// Champ pour les commentaires
   Widget _buildCommentsField() {
-    return OutBorderTextFormField(
-      controller: _commentsController,
-      labelText: "Commentaires",
-      hintText: "Ajouter vos observations",
-      maxLines: 5,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Les commentaires sont requis';
-        }
-        if (value.length < 10) {
-          return 'Les commentaires doivent faire au moins 10 caractères';
-        }
-        return null;
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              "Commentaires",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _generateComments,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text("Générer commentaire"),
+              style: TextButton.styleFrom(
+                foregroundColor: GlobalColors.primary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        OutBorderTextFormField(
+          controller: _commentsController,
+          hintText: "Ajouter vos observations",
+          maxLines: 5,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Les commentaires sont requis';
+            }
+            if (value.length < 10) {
+              return 'Les commentaires doivent faire au moins 10 caractères';
+            }
+            return null;
+          },
+        ),
+      ],
     );
   }
 
@@ -240,7 +268,7 @@ class _LandValidationFormState extends State<LandValidationForm> {
   void _submitForm(BuildContext context, Land land) {
     if (_formKey.currentState!.validate() && _isValid) {
       context.read<GeometreBloc>().add(ValidateLand(
-            landId: land.id,
+            landId: land.blockchainLandId,
             isValid: _isValid,
             comments: _commentsController.text,
           ));
@@ -253,5 +281,195 @@ class _LandValidationFormState extends State<LandValidationForm> {
         ),
       );
     }
+  }
+
+  /// Génère un commentaire basé sur les données du formulaire
+  void _generateComments() {
+    if (!mounted) return;
+
+    // Obtenir l'état actuel
+    final state = context.read<GeometreBloc>().state;
+    if (state is! GeometreLoaded || state.selectedLand == null) return;
+
+    final land = state.selectedLand!;
+
+    // Construire le commentaire section par section
+    final StringBuffer comment = StringBuffer();
+
+    // 1. En-tête avec date et heure
+    comment.writeln(
+        'Rapport de validation du terrain "${land.title}" - ${_getCurrentFormattedDate()}.');
+    comment.writeln();
+
+    // 2. Section superficie
+    _appendAreaSection(comment, land);
+
+    // 3. Section aménités
+    _appendAmenitiesSection(comment, land);
+
+    // 4. Conclusion
+    comment.writeln();
+    comment.writeln(
+        "Conclusion: ${_isValid ? 'Je valide' : 'Je ne valide pas'} ce terrain après inspection sur site.");
+
+    // Mettre à jour le champ de commentaires
+    setState(() {
+      _commentsController.text = comment.toString();
+    });
+  }
+
+  /// Ajoute la section de superficie au commentaire
+  void _appendAreaSection(StringBuffer comment, Land land) {
+    final measuredSurfaceText = _measuredSurfaceController.text;
+
+    if (measuredSurfaceText.isNotEmpty &&
+        double.tryParse(measuredSurfaceText) != null) {
+      final double declaredArea = land.surface;
+      final double measuredArea = double.parse(measuredSurfaceText);
+      final double difference = measuredArea - declaredArea;
+      final double percentDiff = (difference / declaredArea) * 100;
+
+      comment.writeln('SUPERFICIE:');
+      comment
+          .writeln('- Surface déclarée: ${declaredArea.toStringAsFixed(2)} m²');
+      comment
+          .writeln('- Surface mesurée: ${measuredArea.toStringAsFixed(2)} m²');
+      comment.writeln(
+          '- Différence: ${difference.toStringAsFixed(2)} m² (${percentDiff.toStringAsFixed(2)}%)');
+
+      // Commentaire sur l'écart
+      if (percentDiff.abs() <= 2) {
+        comment.writeln(
+            '- Évaluation: Mesure conforme à la déclaration (écart négligeable).');
+      } else if (percentDiff.abs() <= 5) {
+        comment.writeln('- Évaluation: Mesure acceptable (écart modéré).');
+      } else {
+        comment.writeln(
+            '- Évaluation: Écart significatif détecté, nécessitant une attention particulière.');
+
+        if (percentDiff > 0) {
+          comment.writeln(
+              '  * La surface réelle est plus grande que celle déclarée.');
+        } else {
+          comment.writeln(
+              '  * La surface réelle est plus petite que celle déclarée.');
+        }
+      }
+    } else {
+      comment.writeln('SUPERFICIE: Aucune mesure effectuée.');
+    }
+
+    comment.writeln();
+  }
+
+  /// Ajoute la section des aménités au commentaire
+  void _appendAmenitiesSection(StringBuffer comment, Land land) {
+    if (land.amenities == null || land.amenities!.isEmpty) {
+      comment.writeln(
+          'ÉQUIPEMENTS: Aucun équipement ou caractéristique à valider pour ce terrain.');
+      return;
+    }
+
+    comment.writeln('ÉQUIPEMENTS ET CARACTÉRISTIQUES:');
+
+    // Liste des aménités vérifiées comme présentes
+    final List<String> presentAmenities = [];
+    // Liste des aménités vérifiées comme absentes mais déclarées
+    final List<String> missingDeclaredAmenities = [];
+    // Liste des aménités vérifiées comme présentes mais non déclarées
+    final List<String> undeclaredPresentAmenities = [];
+
+    // Analyser chaque aménité
+    for (final entry in land.amenities!.entries) {
+      final amenityName = entry.key;
+      final isDeclared = entry.value;
+      final isValidated = _validatedAmenities[amenityName] ?? false;
+
+      // Obtenir le nom d'affichage
+      final displayName = _getAmenityDisplayName(amenityName);
+
+      if (isValidated) {
+        presentAmenities.add(displayName);
+
+        // Si présent mais non déclaré
+        if (!isDeclared) {
+          undeclaredPresentAmenities.add(displayName);
+        }
+      } else if (isDeclared) {
+        // Si déclaré mais absent
+        missingDeclaredAmenities.add(displayName);
+      }
+    }
+
+    // Ajouter les aménités présentes
+    if (presentAmenities.isNotEmpty) {
+      comment
+          .writeln('- Équipements présents: ${presentAmenities.join(', ')}.');
+    } else {
+      comment.writeln(
+          '- Aucun des équipements déclarés n\'est présent sur le terrain.');
+    }
+
+    // Ajouter les aménités manquantes
+    if (missingDeclaredAmenities.isNotEmpty) {
+      comment.writeln(
+          '- Équipements déclarés mais non présents: ${missingDeclaredAmenities.join(', ')}.');
+    }
+
+    // Ajouter les aménités non déclarées mais présentes
+    if (undeclaredPresentAmenities.isNotEmpty) {
+      comment.writeln(
+          '- Équipements présents mais non déclarés: ${undeclaredPresentAmenities.join(', ')}.');
+    }
+
+    // Résumé de la conformité
+    if (missingDeclaredAmenities.isEmpty &&
+        undeclaredPresentAmenities.isEmpty) {
+      comment.writeln(
+          '- Évaluation: Les équipements présents sont conformes à la déclaration.');
+    } else {
+      comment.writeln(
+          '- Évaluation: Des différences ont été constatées entre la déclaration et les équipements réels.');
+    }
+  }
+
+  /// Obtient le nom d'affichage d'une aménité
+  String _getAmenityDisplayName(String name) {
+    final amenityInfoMap = {
+      'electricity': 'Électricité',
+      'gas': 'Gaz',
+      'water': 'Eau courante',
+      'sewer': 'Tout-à-l\'égout',
+      'internet': 'Internet',
+      'roadAccess': 'Accès routier',
+      'pavedRoad': 'Route goudronnée',
+      'boundaryMarkers': 'Bornes',
+      'fenced': 'Clôturé',
+      'trees': 'Arbres',
+      'flatTerrain': 'Terrain plat',
+      'parking': 'Parking',
+      'lighting': 'Éclairage',
+      'irrigation': 'Irrigation',
+      'shelter': 'Abri',
+      'electricityMeter': 'Compteur électrique',
+      'waterMeter': 'Compteur d\'eau',
+      'buildingPermit': 'Permis de construire',
+      'accessibleDisabled': 'Accès handicapés',
+      'garden': 'Jardin',
+    };
+
+    return amenityInfoMap[name] ??
+        name
+            .replaceAllMapped(RegExp(r'([a-z])([A-Z])'),
+                (match) => '${match.group(1)} ${match.group(2)}')
+            .toLowerCase()
+            .capitalize();
+  }
+
+  /// Obtient la date et l'heure actuelles au format YYYY-MM-DD HH:MM
+  String _getCurrentFormattedDate() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
   }
 }

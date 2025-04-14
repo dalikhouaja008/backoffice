@@ -3,7 +3,6 @@ import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:flareline/presentation/pages/layout.dart';
 import 'package:flareline/presentation/geometre/widgets/land_validation_form.dart';
 
-/// Page principale héritant du layout avec sidebar et navbar
 class LandValidationFormPage extends LayoutWidget {
   final Land? land;
 

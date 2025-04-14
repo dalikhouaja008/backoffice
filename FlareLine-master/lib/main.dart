@@ -58,8 +58,6 @@ void main() async {
     });
   }
 
-  // Lancer l'application avec le wrapper GetMaterialApp plutôt que MaterialApp
-  // pour initialiser correctement Get
   runApp(const MyApp());
 }
 

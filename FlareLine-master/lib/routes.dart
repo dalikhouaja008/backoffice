@@ -1,3 +1,5 @@
+import 'package:flareline/core/injection/injection.dart';
+import 'package:flareline/core/route_guard.dart';
 import 'package:flareline/deferred_widget.dart';
 import 'package:flareline/presentation/geometre/GeometrePage.dart' as geometre;
 import 'package:flareline/presentation/pages/modal/modal_page.dart' deferred as modal;
@@ -11,7 +13,7 @@ import 'package:flareline/presentation/pages/form/form_elements_page.dart' defer
 import 'package:flareline/presentation/pages/form/form_layout_page.dart' deferred as formLayout;
 import 'package:flareline/presentation/pages/auth/sign_in/sign_in_page.dart' deferred as signIn;
 import 'package:flareline/presentation/pages/auth/sign_up/sign_up_page.dart' deferred as signUp;
-import 'package:flareline/presentation/pages/calendar/calendar_page.dart' deferred as calendar;
+//import 'package:flareline/presentation/pages/calendar/calendar_page.dart' deferred as calendar;
 import 'package:flareline/presentation/pages/chart/chart_page.dart' deferred as chart;
 import 'package:flareline/presentation/pages/dashboard/ecommerce_page.dart';
 import 'package:flareline/presentation/pages/inbox/index.dart' deferred as inbox;
@@ -20,6 +22,8 @@ import 'package:flareline/presentation/pages/profile/profile_page.dart' deferred
 import 'package:flareline/presentation/pages/resetpwd/reset_pwd_page.dart' deferred as resetPwd;
 import 'package:flareline/presentation/pages/setting/settings_page.dart' deferred as settings;
 import 'package:flareline/presentation/pages/table/tables_page.dart' deferred as tables;
+import 'package:flareline/presentation/notaire/NotairePage.dart' as notaire;
+import 'package:flareline/presentation/expert/ExpertPage.dart' as expert;
 
 typedef PathWidgetBuilder = Widget Function(BuildContext, String?);
 
@@ -56,36 +60,87 @@ final List<Map<String, Object>> MAIN_PAGES = [
     'routerPath': '/geometre',
     'widget': geometre.GeometrePage(),
   },
+   {'routerPath': '/notaire', 'widget': notaire.NotairePage()},
+  {'routerPath': '/expert', 'widget': expert.ExpertPage()},
 ];
 
 class RouteConfiguration {
-  static final GlobalKey<NavigatorState> navigatorKey =
-      GlobalKey<NavigatorState>(debugLabel: 'Rex');
-
-  static BuildContext? get navigatorContext =>
-      navigatorKey.currentState?.context;
-
-  static Route<dynamic>? onGenerateRoute(
-    RouteSettings settings,
-  ) {
+  static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     String path = settings.name!;
-
-    dynamic map =
-        MAIN_PAGES.firstWhere((element) => element['routerPath'] == path);
-
-    if (map == null) {
+    
+    // Recherche de la page cible
+    Map<String, Object>? map;
+    try {
+      map = MAIN_PAGES.firstWhere(
+        (element) => element['routerPath'] == path,
+        orElse: () => <String, Object>{},
+      );
+      
+      if (map.isEmpty) {
+        return null;
+      }
+    } catch (e) {
       return null;
     }
-    Widget targetPage = map['widget'];
-
-    builder(context, match) {
-      return targetPage;
-    }
-
+    
+    Widget targetPage = map['widget'] as Widget;
+    
+    // Wrapper la page cible dans un widget qui vérifie les autorisations
     return NoAnimationMaterialPageRoute<void>(
-      builder: (context) => builder(context, null),
+      builder: (_) => AuthGuard(
+        routeName: path,
+        child: targetPage,
+      ),
       settings: settings,
     );
+  }
+}
+
+// Widget AuthGuard qui vérifie les autorisations lors de la construction
+class AuthGuard extends StatefulWidget {
+  final String routeName;
+  final Widget child;
+  
+  const AuthGuard({Key? key, required this.routeName, required this.child}) : super(key: key);
+  
+  @override
+  _AuthGuardState createState() => _AuthGuardState();
+}
+
+class _AuthGuardState extends State<AuthGuard> {
+  bool _checking = true;
+  bool _authorized = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
+  }
+  
+  Future<void> _checkAccess() async {
+    final canAccess = await getIt<RouteGuard>().canActivate(widget.routeName);
+    
+    if (mounted) {
+      setState(() {
+        _checking = false;
+        _authorized = canAccess;
+      });
+      
+      if (!_authorized) {
+        Future.microtask(() {
+          Navigator.of(context).pushReplacementNamed('/signIn');
+        });
+      }
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    if (_checking) {
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
+    return widget.child;
   }
 }
 

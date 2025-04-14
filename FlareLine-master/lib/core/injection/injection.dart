@@ -31,21 +31,22 @@ void setupInjection() {
   getIt.registerLazySingleton(() => const FlutterSecureStorage());
   getIt.registerLazySingleton(() => SecureStorageService());
   getIt.registerLazySingleton(() => SessionService());
+  getIt.registerLazySingleton(() => RouteGuard(getIt<SessionService>()));
 
   // Configuration de l'URL de l'API en fonction de la plateforme
   final String apiBaseUrl = _getApiBaseUrl();
   getIt.registerLazySingleton<String>(() => apiBaseUrl, instanceName: 'apiBaseUrl');
   
-  getIt<Logger>().i('[2025-04-13 21:30:04] API Base URL configurée: $apiBaseUrl - User: nesssim');
+  getIt<Logger>().i('API Base URL configurée: $apiBaseUrl ');
 
   // Configuration de Dio avec AuthInterceptor pour LandService
   getIt.registerLazySingleton(() {
     final dio = Dio();
 
-    // Configuration de base avec l'URL adaptée à la plateforme
+    // Configuration de base avec l'URL 
     dio.options.baseUrl = apiBaseUrl;
-    dio.options.connectTimeout = const Duration(seconds: 15); // Augmenté à 15 secondes
-    dio.options.receiveTimeout = const Duration(seconds: 15); // Augmenté à 15 secondes
+    dio.options.connectTimeout = const Duration(seconds: 15); 
+    dio.options.receiveTimeout = const Duration(seconds: 15); 
 
     // Ajout des intercepteurs
     dio.interceptors.add(
@@ -72,7 +73,7 @@ void setupInjection() {
       ),
     );
 
-    getIt<Logger>().i('[2025-04-13 21:30:04] Dio client configured with AuthInterceptor - User: nesssim');
+    getIt<Logger>().i(' Dio client configured with AuthInterceptor');
     return dio;
   });
 
@@ -97,7 +98,7 @@ void setupInjection() {
     () => GeometreRemoteDataSource(
       dio: getIt<Dio>(),
       logger: getIt<Logger>(),
-      baseUrl: apiBaseUrl, // Utilisation de l'URL adaptée à la plateforme
+      baseUrl: apiBaseUrl, 
     ),
   );
 
