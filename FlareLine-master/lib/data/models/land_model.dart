@@ -10,18 +10,19 @@ class LandModel {
   final double surface;
   final int? totalTokens;
   final String? pricePerToken;
-  final String? priceland;  
+  final String? priceland;
   final String ownerId;
   final String ownerAddress;
   final double? latitude;
   final double? longitude;
   final LandValidationStatus status;
-  final String landtype;  
+  final String landtype;
   final List<String> ipfsCIDs;
   final List<String> imageCIDs;
-  final List<String> imageUrls;     // Nouvelle propriété pour les URLs d'images
-  final List<String> documentUrls;  // Nouvelle propriété pour les URLs de documents
-  final String? coverImageUrl;      // URL de l'image principale (optionnelle)
+  final List<String> imageUrls; // Nouvelle propriété pour les URLs d'images
+  final List<String>
+      documentUrls; // Nouvelle propriété pour les URLs de documents
+  final String? coverImageUrl; // URL de l'image principale (optionnelle)
   final String? metadataCID;
   final String? blockchainTxHash;
   final String blockchainLandId;
@@ -47,8 +48,8 @@ class LandModel {
     required this.landtype,
     required this.ipfsCIDs,
     required this.imageCIDs,
-    this.imageUrls = const [],     // Valeur par défaut
-    this.documentUrls = const [],  // Valeur par défaut
+    this.imageUrls = const [], // Valeur par défaut
+    this.documentUrls = const [], // Valeur par défaut
     this.coverImageUrl,
     this.metadataCID,
     this.blockchainTxHash,
@@ -87,12 +88,10 @@ class LandModel {
       blockchainTxHash: json['blockchainTxHash'],
       blockchainLandId: json['blockchainLandId']?.toString() ?? '0',
       validations: _parseValidations(json['validations']),
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt']) 
-          : null,
-      updatedAt: json['updatedAt'] != null 
-          ? DateTime.parse(json['updatedAt']) 
-          : null,
+      createdAt:
+          json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
+      updatedAt:
+          json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
       amenities: _parseAmenities(json['amenities']),
     );
   }
@@ -115,9 +114,9 @@ class LandModel {
       'landtype': landtype,
       'ipfsCIDs': ipfsCIDs,
       'imageCIDs': imageCIDs,
-      'imageUrls': imageUrls,        
-      'documentUrls': documentUrls,   
-      'coverImageUrl': coverImageUrl, 
+      'imageUrls': imageUrls,
+      'documentUrls': documentUrls,
+      'coverImageUrl': coverImageUrl,
       'metadataCID': metadataCID,
       'blockchainTxHash': blockchainTxHash,
       'blockchainLandId': blockchainLandId,
@@ -127,6 +126,7 @@ class LandModel {
       'amenities': amenities,
     };
   }
+
   // Méthodes utilitaires pour le parsing robuste
   static double _parseDouble(dynamic value) {
     if (value == null) return 0.0;
@@ -159,33 +159,73 @@ class LandModel {
   }
 
   static Map<String, bool>? _parseAmenities(dynamic amenities) {
+    // Si null, retourner null
     if (amenities == null) return null;
-    
+
+    print("Type d'aménités reçu: ${amenities.runtimeType}");
+    print("Contenu des aménités: $amenities");
+
+    // Gérer le cas où amenities est un tableau de paires [clé, valeur]
+    if (amenities is List) {
+      Map<String, bool> result = {};
+
+      try {
+        for (var item in amenities) {
+          if (item is List && item.length == 2) {
+            String key = item[0].toString();
+            var value = item[1];
+
+            // Convertir la valeur en booléen
+            bool boolValue = false;
+            if (value is bool) {
+              boolValue = value;
+            } else if (value is String) {
+              boolValue = value.toLowerCase() == 'true';
+            } else if (value is num) {
+              boolValue = value != 0;
+            }
+
+            result[key] = boolValue;
+          }
+        }
+        return result.isNotEmpty ? result : null;
+      } catch (e) {
+        print("Erreur lors du parsing des aménités (format liste): $e");
+        return null;
+      }
+    }
+
     // Si c'est déjà une Map<String, bool>
     if (amenities is Map<String, bool>) return amenities;
-    
+
     // Si c'est une Map mais pas du bon type
     if (amenities is Map) {
       try {
-        return Map<String, bool>.from(amenities);
-      } catch (e) {
-        // Si la conversion échoue, créer une nouvelle map
-        final result = <String, bool>{};
+        final resultMap = <String, bool>{};
+
         amenities.forEach((key, value) {
           if (key is String) {
+            // Convertir différents types en booléen
             if (value is bool) {
-              result[key] = value;
+              resultMap[key] = value;
             } else if (value is String) {
-              result[key] = value.toLowerCase() == 'true';
+              resultMap[key] = value.toLowerCase() == 'true';
             } else if (value is num) {
-              result[key] = value != 0;
+              resultMap[key] = value != 0;
+            } else {
+              // Si on ne peut pas déterminer, considérer comme false
+              resultMap[key] = false;
             }
           }
         });
-        return result;
+
+        return resultMap.isNotEmpty ? resultMap : null;
+      } catch (e) {
+        print("Erreur lors du parsing des aménités (format map): $e");
+        return null;
       }
     }
-    
+
     return null;
   }
 
