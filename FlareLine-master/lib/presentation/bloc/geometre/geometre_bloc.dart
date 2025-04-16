@@ -115,62 +115,46 @@ class GeometreBloc extends Bloc<GeometreEvent, GeometreState> {
     }
   }
 
-  Future<void> _onValidateLand(
-    ValidateLand event,
-    Emitter<GeometreState> emit,
-  ) async {
-    try {
-      emit(ValidationInProgress(landId: event.landId));
+Future<void> _onValidateLand(
+  ValidateLand event,
+  Emitter<GeometreState> emit,
+) async {
+  try {
+    emit(ValidationInProgress(landId: event.landId));
 
-      final validation = await validateLand.call(
-        landId: event.landId,
-        isValidated: event.isValid,
-        comments: event.comments,
-      );
+    final validation = await validateLand.call(
+      landId: event.landId,
+      isValidated: event.isValid, // Utiliser isValid de l'événement
+      comments: event.comment, // Utiliser comment de l'événement
+    );
 
-      logger.log(
-        Level.info,
-        'Land validation successful',
-        error: {
-          'landId': event.landId,
-          'timestamp': '2025-04-09 21:06:25',
-          'userLogin': 'dalikhouaja008'
-        },
-      );
+    logger.log(
+      Level.info,
+      'Land validation successful',
+      error: {
+        'landId': event.landId,
+        'timestamp': DateTime.now().toString(),
+        'userLogin': 'nesssim',
+      },
+    );
 
-      if (state is GeometreLoaded) {
-        final currentState = state as GeometreLoaded;
-        if (currentState.selectedLand != null) {
-          final updatedLand = currentState.selectedLand!.copyWith(
-            validations: [
-              ...currentState.selectedLand!.validations,
-              validation
-            ],
-          );
-
-          emit(ValidationSuccess(
-            land: updatedLand,
-            message: 'Validation effectuée avec succès',
-          ));
-
-          add(RefreshLands());
-        }
-      }
-    } catch (e) {
-      logger.log(
-        Level.error,
-        'Error validating land',
-        error: {
-          'landId': event.landId,
-          'timestamp': '2025-04-09 21:06:25',
-          'userLogin': 'dalikhouaja008'
-        },
-      );
-
-      emit(ValidationFailure(
-        message: 'Erreur lors de la validation',
-        landId: event.landId,
-      ));
+    if (state is GeometreLoaded) {
+      // Suite du code...
     }
+  } catch (e) {
+    logger.log(
+      Level.error,
+      'Error validating land',
+      error: {
+        'landId': event.landId,
+        'error': e.toString(),
+      },
+    );
+
+    emit(ValidationFailure(
+      message: 'Erreur lors de la validation: ${e.toString()}',
+      landId: event.landId,
+    ));
   }
+}
 }

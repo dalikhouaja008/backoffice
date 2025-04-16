@@ -36,20 +36,20 @@ class ClearSelectedLand extends GeometreEvent {}
 
 class ValidateLand extends GeometreEvent {
   final String landId;
-  final bool isValid;
-  final String comments;
+  final bool isValid; // Utiliser isValid au lieu de isValidated
+  final String comment; // Utiliser comment au lieu de comments
 
   const ValidateLand({
     required this.landId,
     required this.isValid,
-    required this.comments,
+    required this.comment,
   });
 
   @override
   List<Object> get props => [
     landId,
     isValid,
-    comments,
+    comment,
   ];
 }
 
