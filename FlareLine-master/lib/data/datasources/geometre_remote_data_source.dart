@@ -93,7 +93,7 @@ class GeometreRemoteDataSource {
       );
       throw Exception('Failed to fetch lands: ${response.statusCode} - ${response.statusMessage}');
     }
-  } catch (e, stack) {
+  } catch (e) {
     // Log d'erreur avec stack trace
     logger.e(
       '[2025-04-13 22:12:39] GeometreRemoteDataSource: Erreur lors de la récupération des terrains'
@@ -103,59 +103,72 @@ class GeometreRemoteDataSource {
 }
   
   
-  Future<ValidationEntity> validateLand({
-    required String landId,
-    required bool isValidated,
-    String? comments,
-  }) async {
-    try {
+Future<ValidationEntity> validateLand({
+  required String landId,
+  required bool isValidated,
+  String? comments,
+}) async {
+  try {
+    logger.log(
+      Level.info,
+      'Validating land as geometer',
+      error: {
+        'landId': landId,
+        'isValid': isValidated, // Renommé pour correspondre au backend
+      },
+    );
+
+    // Structure EXACTEMENT comme celle validée dans Postman
+    final validationRequest = {
+      'landId': landId.toString(), // Toujours en string
+      'isValid': isValidated, // Utiliser isValid et non isValidated
+      'comment': comments ?? '', // Utiliser comment (singulier) et non comments
+    };
+
+    logger.d('Envoi de la requête avec: $validationRequest');
+
+    final response = await dio.post(
+      '$baseUrl/lands/validate',
+      data: validationRequest,
+    );
+
+    if (response.statusCode == 200) {
       logger.log(
         Level.info,
-        'Validating land as geometer',
+        'Land validation successful',
         error: {
           'landId': landId,
-          'isValidated': isValidated,
+          'response': response.data,
         },
       );
-
-      final validationRequest = {
-        'landId': landId,
-        'isValidated': isValidated,
-        'comments': comments ?? '',
-      };
-
-      final response = await dio.post(
-        '$baseUrl/lands/validate',
-        data: validationRequest,
+      
+      return ValidationEntity(
+        isValidated: isValidated,
+        comments: comments,
       );
-
-      if (response.statusCode == 200) {
-        logger.log(
-          Level.info,
-          'Land validation successful',
-          error: {
-            'landId': landId,
-            'response': response.data,
-          },
-        );
-        
-        return ValidationEntity(
-          isValidated: isValidated,
-          comments: comments,
-        );
-      } else {
-        throw Exception('Failed to validate land: ${response.statusCode}');
-      }
-    } catch (e) {
-      logger.log(
-        Level.error,
-        'Error validating land',
-        error: {
-          'landId': landId,
-          'error': e.toString(),
-        },
-      );
-      rethrow;
+    } else {
+      throw Exception('Failed to validate land: ${response.statusCode}');
     }
+  } on DioException catch (e) {
+    logger.e(
+      'Dio Error validating land',
+      error: {
+        'statusCode': e.response?.statusCode,
+        'responseData': e.response?.data,
+        'requestData': e.requestOptions.data,
+      }
+    );
+    rethrow;
+  } catch (e) {
+    logger.log(
+      Level.error,
+      'Error validating land',
+      error: {
+        'landId': landId,
+        'error': e.toString(),
+      },
+    );
+    rethrow;
   }
+}
 }

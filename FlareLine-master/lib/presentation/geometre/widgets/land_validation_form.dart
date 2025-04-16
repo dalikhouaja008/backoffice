@@ -506,9 +506,9 @@ class _LandValidationFormState extends State<LandValidationForm> {
 
       // Soumettre le formulaire
       context.read<GeometreBloc>().add(ValidateLand(
-            landId: land.id,
+            landId: land.blockchainLandId,
             isValid: _isValid,
-            comments: commentsWithImageValidation,
+            comment: commentsWithImageValidation,
           ));
     }
   }

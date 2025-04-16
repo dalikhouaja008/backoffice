@@ -81,14 +81,16 @@ class ValidationInProgress extends GeometreState {
 class ValidationSuccess extends GeometreState {
   final Land land;
   final String message;
+  final Map<String, dynamic>? transactionInfo; 
 
   const ValidationSuccess({
     required this.land,
     required this.message,
+    this.transactionInfo,
   });
 
   @override
-  List<Object> get props => [land, message];
+  List<Object?> get props => [land, message, transactionInfo];
 }
 
 class ValidationFailure extends GeometreState {

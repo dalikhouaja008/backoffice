@@ -19,18 +19,18 @@ class GeometreRepositoryImpl implements GeometreRepository {
   @override
   Future<List<Land>> getPendingLands() async {
     try {
-      _logger.i('[2025-04-13 19:35:21] GeometreRepositoryImpl: Récupération des terrains à valider - User: nesssim');
+      _logger.i('GeometreRepositoryImpl: Récupération des terrains à valider ');
       
       final lands = await _remoteDataSource.getPendingLands();
       
       _logger.i(
-        '[2025-04-13 19:35:21] GeometreRepositoryImpl: ${lands.length} terrains récupérés - User: nesssim',
+        'GeometreRepositoryImpl: ${lands.length} terrains récupérés',
       );
       
       return lands;
     } catch (e) {
       _logger.e(
-        '[2025-04-13 19:35:21] GeometreRepositoryImpl: Erreur lors de la récupération des terrains',
+        'GeometreRepositoryImpl: Erreur lors de la récupération des terrains',
         error: e.toString(),
       );
       rethrow;
