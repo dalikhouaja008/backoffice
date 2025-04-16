@@ -19,13 +19,16 @@ class LandModel {
   final String landtype;  
   final List<String> ipfsCIDs;
   final List<String> imageCIDs;
+  final List<String> imageUrls;     // Nouvelle propriété pour les URLs d'images
+  final List<String> documentUrls;  // Nouvelle propriété pour les URLs de documents
+  final String? coverImageUrl;      // URL de l'image principale (optionnelle)
   final String? metadataCID;
   final String? blockchainTxHash;
   final String blockchainLandId;
   final List<ValidationModel> validations;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-  final Map<String, bool>? amenities;  // Ajouté selon le schéma
+  final Map<String, bool>? amenities;
 
   const LandModel({
     required this.id,
@@ -44,6 +47,9 @@ class LandModel {
     required this.landtype,
     required this.ipfsCIDs,
     required this.imageCIDs,
+    this.imageUrls = const [],     // Valeur par défaut
+    this.documentUrls = const [],  // Valeur par défaut
+    this.coverImageUrl,
     this.metadataCID,
     this.blockchainTxHash,
     required this.blockchainLandId,
@@ -71,6 +77,12 @@ class LandModel {
       landtype: json['landtype'] ?? 'unknown',
       ipfsCIDs: _parseStringList(json['ipfsCIDs']),
       imageCIDs: _parseStringList(json['imageCIDs']),
+      // Utiliser les nouvelles URLs d'images si disponibles, sinon tableau vide
+      imageUrls: _parseStringList(json['imageUrls']),
+      // Utiliser les nouvelles URLs de documents si disponibles, sinon tableau vide
+      documentUrls: _parseStringList(json['documentUrls']),
+      // Image de couverture
+      coverImageUrl: json['coverImageUrl'],
       metadataCID: json['metadataCID'],
       blockchainTxHash: json['blockchainTxHash'],
       blockchainLandId: json['blockchainLandId']?.toString() ?? '0',
@@ -103,6 +115,9 @@ class LandModel {
       'landtype': landtype,
       'ipfsCIDs': ipfsCIDs,
       'imageCIDs': imageCIDs,
+      'imageUrls': imageUrls,        
+      'documentUrls': documentUrls,   
+      'coverImageUrl': coverImageUrl, 
       'metadataCID': metadataCID,
       'blockchainTxHash': blockchainTxHash,
       'blockchainLandId': blockchainLandId,
@@ -112,7 +127,6 @@ class LandModel {
       'amenities': amenities,
     };
   }
-
   // Méthodes utilitaires pour le parsing robuste
   static double _parseDouble(dynamic value) {
     if (value == null) return 0.0;

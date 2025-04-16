@@ -55,13 +55,7 @@ class _SignInWidgetState extends State<SignInWidget> {
     bloc.add(LoginRequested(email, password));
   }
 
-  void _signInWithGoogle(BuildContext context) {
-    _showInfo('Connexion avec Google non implémentée', context);
-  }
 
-  void _signInWithGithub(BuildContext context) {
-    _showInfo('Connexion avec GitHub non implémentée', context);
-  }
 
   void _showError(String message, BuildContext context) {
     toastification.show(
@@ -74,16 +68,6 @@ class _SignInWidgetState extends State<SignInWidget> {
     );
   }
 
-  void _showInfo(String message, BuildContext context) {
-    toastification.show(
-      context: context,
-      type: ToastificationType.info,
-      style: ToastificationStyle.fillColored,
-      title: Text('Information'),
-      description: Text(message),
-      autoCloseDuration: const Duration(seconds: 3),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,8 +125,9 @@ class _SignInWidgetState extends State<SignInWidget> {
     );
   }
 
-  Widget _contentDesktopWidget(BuildContext context, LoginState state) {
-    return Column(
+ Widget _contentDesktopWidget(BuildContext context, LoginState state) {
+  return SingleChildScrollView( // Ajouter un widget de défilement
+    child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         CommonCard(
@@ -177,8 +162,9 @@ class _SignInWidgetState extends State<SignInWidget> {
           ]),
         )
       ],
-    );
-  }
+    ),
+  );
+}
 
   Widget _contentMobileWidget(BuildContext context, LoginState state) {
     return CommonCard(
@@ -258,64 +244,8 @@ class _SignInWidgetState extends State<SignInWidget> {
 
             // Reste du formulaire
             const SizedBox(height: 20),
-            Row(
-              children: [
-                const Expanded(
-                    child: Divider(
-                  height: 1,
-                  color: GlobalColors.border,
-                )),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(AppLocalizations.of(context)!.or),
-                ),
-                const Expanded(
-                    child: Divider(
-                  height: 1,
-                  color: GlobalColors.border,
-                )),
-              ],
-            ),
-            const SizedBox(height: 20),
-            ButtonWidget(
-              color: Colors.white,
-              borderColor: GlobalColors.border,
-              iconWidget: SvgPicture.asset(
-                'assets/brand/brand-01.svg',
-                width: 25,
-                height: 25,
-              ),
-              btnText: AppLocalizations.of(context)!.signInWithGoogle,
-              onTap: isLoading ? null : () => _signInWithGoogle(context),
-            ),
-            const SizedBox(height: 20),
-            ButtonWidget(
-              color: Colors.white,
-              borderColor: GlobalColors.border,
-              iconWidget: SvgPicture.asset(
-                'assets/brand/brand-03.svg',
-                width: 25,
-                height: 25,
-              ),
-              btnText: AppLocalizations.of(context)!.signInWithGithub,
-              onTap: isLoading ? null : () => _signInWithGithub(context),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(AppLocalizations.of(context)!.dontHaveAccount),
-                InkWell(
-                  onTap: isLoading
-                      ? null
-                      : () => Navigator.of(context).popAndPushNamed('/signUp'),
-                  child: Text(
-                    AppLocalizations.of(context)!.signUp,
-                    style: const TextStyle(color: Colors.blue),
-                  ),
-                )
-              ],
-            )
+
+
           ],
         ));
   }

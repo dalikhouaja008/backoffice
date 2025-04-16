@@ -2,6 +2,7 @@ import 'package:flareline/data/models/land_model.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:flareline/data/mappers/validation_mapper.dart';
 
+
 class LandMapper {
   static Land toEntity(LandModel model) {
     return Land(
@@ -21,6 +22,9 @@ class LandMapper {
       landtype: model.landtype,
       ipfsCIDs: model.ipfsCIDs,
       imageCIDs: model.imageCIDs,
+      imageUrls: model.imageUrls,         // Ajouter les nouvelles propriétés
+      documentUrls: model.documentUrls,   // Ajouter les nouvelles propriétés
+      coverImageUrl: model.coverImageUrl, // Ajouter les nouvelles propriétés
       metadataCID: model.metadataCID,
       blockchainTxHash: model.blockchainTxHash,
       blockchainLandId: model.blockchainLandId,
@@ -49,6 +53,9 @@ class LandMapper {
       landtype: entity.landtype,
       ipfsCIDs: entity.ipfsCIDs,
       imageCIDs: entity.imageCIDs,
+      imageUrls: entity.imageUrls,         // Ajouter les nouvelles propriétés
+      documentUrls: entity.documentUrls,   // Ajouter les nouvelles propriétés
+      coverImageUrl: entity.coverImageUrl, // Ajouter les nouvelles propriétés
       metadataCID: entity.metadataCID,
       blockchainTxHash: entity.blockchainTxHash,
       blockchainLandId: entity.blockchainLandId,

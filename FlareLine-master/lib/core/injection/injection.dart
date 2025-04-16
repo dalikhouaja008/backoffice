@@ -1,4 +1,5 @@
 import 'package:flareline/core/network/graphql_client.dart';
+import 'package:flareline/core/routes/route_guard.dart';
 import 'package:flareline/core/services/location_service.dart';
 import 'package:flareline/core/services/openroute_service.dart';
 import 'package:flareline/core/services/secure_storage.dart';
@@ -147,7 +148,7 @@ void setupInjection() {
   // Log initialization
   getIt<Logger>().log(
     Level.info,
-    '[2025-04-13 21:30:04] Dependency injection setup completed - User: nesssim',
+    ' Dependency injection setup completed ',
   );
 }
 

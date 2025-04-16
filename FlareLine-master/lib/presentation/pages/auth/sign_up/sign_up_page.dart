@@ -167,12 +167,9 @@ class SignUpWidget extends BaseWidget<SignUpProvider> {
     );
   }
 
-  @override
   bool get isPage => true;
 
-  @override
   bool get showTitle => false;
 
-  @override
   bool get isAlignCenter => true;
 }
