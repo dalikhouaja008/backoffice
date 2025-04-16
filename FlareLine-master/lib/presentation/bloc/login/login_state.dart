@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flareline/core/services/route_service.dart';
 import 'package:flareline/data/models/device_info_model.dart';
 import 'package:flareline/domain/entities/user.dart';
 
@@ -18,8 +19,9 @@ class LoginSuccess extends LoginState {
   final String? refreshToken;
   final bool requiresTwoFactor;
   final String? tempToken;
-  final String? sessionId;  // Ajout du sessionId
-  final DeviceInfoModel? deviceInfo;  // Ajout du deviceInfo
+  final String? sessionId;
+  final DeviceInfoModel? deviceInfo;
+  final String initialRoute; // Nouvelle propriété
 
   LoginSuccess({
     required this.user,
@@ -28,8 +30,9 @@ class LoginSuccess extends LoginState {
     this.requiresTwoFactor = false,
     this.tempToken,
     this.sessionId, 
-    this.deviceInfo,  
-  });
+    this.deviceInfo,
+    String? initialRoute,
+  }) : initialRoute = initialRoute ?? RouteService.getInitialRouteForRole(user.role);
 
   @override
   List<Object?> get props => [
@@ -38,8 +41,9 @@ class LoginSuccess extends LoginState {
         refreshToken,
         requiresTwoFactor,
         tempToken,
-        sessionId, 
-        deviceInfo,  
+        sessionId,
+        deviceInfo,
+        initialRoute,
       ];
 }
 

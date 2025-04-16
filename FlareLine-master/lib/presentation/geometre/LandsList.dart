@@ -4,6 +4,7 @@ import 'package:flareline/domain/enums/validation_enums.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_bloc.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_event.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_state.dart';
+import 'package:flareline/presentation/geometre/widgets/land_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flareline_uikit/components/card/common_card.dart';
@@ -103,108 +104,119 @@ class LandsList extends StatelessWidget {
     );
   }
 
-  Widget _buildLandItem(BuildContext context, Land land, bool isSelected) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          context.read<GeometreBloc>().add(SelectLand(land: land));
+ Widget _buildLandItem(BuildContext context, Land land, bool isSelected) {
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: () {
+        context.read<GeometreBloc>().add(SelectLand(land: land));
 
-          getIt<Logger>().log(
-            Level.info,
-            'Land item tapped',
-            error: {
-              'landId': land.id,
-            },
-          );
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected ? GlobalColors.primary.withOpacity(0.1) : null,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? GlobalColors.primary
-                  : Colors.grey.withOpacity(0.2),
-              width: isSelected ? 2 : 1,
-            ),
+        getIt<Logger>().log(
+          Level.info,
+          'Land item tapped',
+          error: {
+            'landId': land.id,
+          },
+        );
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? GlobalColors.primary.withOpacity(0.1) : null,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? GlobalColors.primary
+                : Colors.grey.withOpacity(0.2),
+            width: isSelected ? 2 : 1,
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Icône
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: GlobalColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.landscape,
-                  color: GlobalColors.primary,
-                  size: 24,
-                ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image du terrain ou icône par défaut
+            Container(
+              width: 80,
+              height: 80,
+              clipBehavior: Clip.hardEdge,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 16),
+              child: land.coverImageUrl != null || (land.imageUrls.isNotEmpty)
+                  ? LandImage(
+                      imageUrl: land.coverImageUrl ?? land.imageUrls.first,
+                      width: 80,
+                      height: 80,
+                    )
+                  : Container(
+                      decoration: BoxDecoration(
+                        color: GlobalColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.landscape,
+                        color: GlobalColors.primary,
+                        size: 40,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 16),
 
-              // Informations principales
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      land.title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      land.location,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Surface: ${land.surface} m²',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-
-              // Status et ID
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+            // Informations principales
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildStatusChip(land.status),
-                  const SizedBox(height: 8),
                   Text(
-                    'ID: ${land.blockchainLandId.length > 8 ? "${land.blockchainLandId.substring(0, 8)}..." : land.blockchainLandId}',
+                    land.title,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    land.location,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Surface: ${land.surface} m²',
+                    style: const TextStyle(
+                      fontSize: 14,
                       color: Colors.grey,
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 16),
+
+            // Status et ID
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _buildStatusChip(land.status),
+                const SizedBox(height: 8),
+                Text(
+                  'ID: ${land.blockchainLandId.length > 8 ? "${land.blockchainLandId.substring(0, 8)}..." : land.blockchainLandId}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-    );
-  }
-
+    ),
+  );
+}
   Widget _buildStatusChip(LandValidationStatus status) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

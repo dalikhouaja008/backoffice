@@ -17,6 +17,9 @@ class Land {
   final String landtype;
   final List<String> ipfsCIDs;
   final List<String> imageCIDs;
+  final List<String> imageUrls;     // Nouvelle propriété
+  final List<String> documentUrls;  // Nouvelle propriété
+  final String? coverImageUrl;      // Nouvelle propriété
   final String? metadataCID;
   final String? blockchainTxHash;
   final String blockchainLandId;
@@ -42,6 +45,9 @@ class Land {
     required this.landtype,
     required this.ipfsCIDs,
     required this.imageCIDs,
+    this.imageUrls = const [],     // Valeur par défaut
+    this.documentUrls = const [],  // Valeur par défaut
+    this.coverImageUrl,
     this.metadataCID,
     this.blockchainTxHash,
     required this.blockchainLandId,
@@ -51,7 +57,7 @@ class Land {
     this.amenities,
   });
 
-
+  // Mettez à jour la méthode copyWith pour inclure les nouveaux champs
   Land copyWith({
     String? id,
     String? title,
@@ -69,6 +75,9 @@ class Land {
     String? landtype,               
     List<String>? ipfsCIDs,
     List<String>? imageCIDs,
+    List<String>? imageUrls,
+    List<String>? documentUrls,
+    String? coverImageUrl,
     String? metadataCID,
     String? blockchainTxHash,
     String? blockchainLandId,
@@ -94,6 +103,9 @@ class Land {
       landtype: landtype ?? this.landtype,
       ipfsCIDs: ipfsCIDs ?? this.ipfsCIDs,
       imageCIDs: imageCIDs ?? this.imageCIDs,
+      imageUrls: imageUrls ?? this.imageUrls,
+      documentUrls: documentUrls ?? this.documentUrls,
+      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
       metadataCID: metadataCID ?? this.metadataCID,
       blockchainTxHash: blockchainTxHash ?? this.blockchainTxHash,
       blockchainLandId: blockchainLandId ?? this.blockchainLandId,

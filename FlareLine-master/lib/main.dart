@@ -4,12 +4,13 @@ import 'package:flareline_uikit/service/localization_provider.dart';
 import 'package:flareline/routes.dart';
 import 'package:flareline_uikit/service/theme_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';  // Ajoutez cet import
+import 'package:flutter/services.dart'; 
 import 'package:flareline/flutter_gen/app_localizations.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+
 
 void main() async {
   // Assurez-vous que Flutter est initialisé
@@ -58,8 +59,6 @@ void main() async {
     });
   }
 
-  // Lancer l'application avec le wrapper GetMaterialApp plutôt que MaterialApp
-  // pour initialiser correctement Get
   runApp(const MyApp());
 }
 
@@ -82,7 +81,7 @@ class MyApp extends StatelessWidget {
           restorationScopeId: 'rootFlareLine',
           title: 'The boost',
           debugShowCheckedModeBanner: false,
-          initialRoute: '/',
+          initialRoute: '/signIn',
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           locale: context.watch<LocalizationProvider>().locale,
           supportedLocales: AppLocalizations.supportedLocales,

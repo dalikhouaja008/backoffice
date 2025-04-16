@@ -1,12 +1,11 @@
 import 'dart:developer' as developer;
-import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'dart:math' show pi, cos;
-
+import 'dart:math' show cos;
 import 'package:flareline/core/theme/global_colors.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:flareline_uikit/components/forms/outborder_text_form_field.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Section pour la mesure de superficie
 class AreaMeasurementSection extends StatefulWidget {
@@ -73,7 +72,7 @@ class _AreaMeasurementSectionState extends State<AreaMeasurementSection> {
   void _openAreaMeasurement(Land land) {
     // Copie locale des points pour la boîte de dialogue
     List<LatLng> dialogPoints = List.from(_measurementPoints);
-    
+
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -115,7 +114,8 @@ class _AreaMeasurementSectionState extends State<AreaMeasurementSection> {
                           label: const Text('Terminer'),
                           onPressed: () {
                             // Calculer la superficie et l'appliquer au formulaire
-                            double area = _calculateAreaFromGpsPoints(dialogPoints);
+                            double area =
+                                _calculateAreaFromGpsPoints(dialogPoints);
                             setState(() {
                               _measurementPoints = dialogPoints;
                               widget.controller.text = area.toStringAsFixed(2);
@@ -136,17 +136,19 @@ class _AreaMeasurementSectionState extends State<AreaMeasurementSection> {
                           'Placez au moins 3 points pour calculer la superficie.',
                           style: TextStyle(fontStyle: FontStyle.italic),
                         ),
-                        if (dialogPoints.isNotEmpty) 
+                        if (dialogPoints.isNotEmpty)
                           const Text(
                             'Utilisez le bouton ↻ pour recommencer la mesure.',
-                            style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                            style: TextStyle(
+                                fontStyle: FontStyle.italic, fontSize: 12),
                           ),
                       ],
                     ),
                   ),
                   // Carte
                   Expanded(
-                    child: _buildMeasurementMap(land, dialogPoints, setDialogState),
+                    child: _buildMeasurementMap(
+                        land, dialogPoints, setDialogState),
                   ),
                   // Pied de page avec statistiques
                   Padding(
@@ -161,7 +163,8 @@ class _AreaMeasurementSectionState extends State<AreaMeasurementSection> {
                               if (dialogPoints.length >= 3)
                                 Text(
                                   'Surface estimée: ${_calculateAreaFromGpsPoints(dialogPoints).toStringAsFixed(2)} m²',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
                             ],
                           ),
@@ -191,9 +194,10 @@ class _AreaMeasurementSectionState extends State<AreaMeasurementSection> {
       ),
     );
   }
-  
+
   /// Construit la carte pour la mesure
-  Widget _buildMeasurementMap(Land land, List<LatLng> points, StateSetter setState) {
+  Widget _buildMeasurementMap(
+      Land land, List<LatLng> points, StateSetter setState) {
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
@@ -268,18 +272,18 @@ class _AreaMeasurementSectionState extends State<AreaMeasurementSection> {
               ),
             ],
           ),
-        // Polylignes pour relier les points
-        PolylineLayer(
-          polylines: [
-            Polyline(
-              points: points.isEmpty ? [] : [
-                ...points,
-                if (points.length > 2) points.first
-              ],
-              color: Colors.orange,
-              strokeWidth: 3.0,
-            ),
-          ],
+        // Polylignes pour relier les points - CORRIGÉ
+        PolylineLayer<Object>(
+          polylines: points.isEmpty
+              ? []
+              : [
+                  Polyline<Object>(
+                    // Spécifier le type générique ici aussi
+                    points: [...points, if (points.length > 2) points.first],
+                    color: Colors.orange,
+                    strokeWidth: 3.0,
+                  ),
+                ],
         ),
       ],
     );
@@ -288,7 +292,7 @@ class _AreaMeasurementSectionState extends State<AreaMeasurementSection> {
   /// Calcule la superficie en m² à partir de points GPS
   double _calculateAreaFromGpsPoints(List<LatLng> points) {
     if (points.length < 3) return 0;
-    
+
     // Formule de Gauss pour calculer l'aire
     double area = 0;
     for (int i = 0; i < points.length; i++) {
@@ -297,20 +301,20 @@ class _AreaMeasurementSectionState extends State<AreaMeasurementSection> {
       area -= points[j].longitude * points[i].latitude;
     }
     area = area.abs() * 0.5;
-    
+
     // Convertir en mètres carrés (approximatif, dépend de la latitude)
     final center = LatLng(
       points.map((p) => p.latitude).reduce((a, b) => a + b) / points.length,
       points.map((p) => p.longitude).reduce((a, b) => a + b) / points.length,
     );
-    
+
     // Facteurs de conversion
     final double latRad = center.latitude * pi / 180.0;
-    final double metersPerDegreeLat = 111132.92 - 559.82 * cos(2 * latRad) + 
-        1.175 * cos(4 * latRad);
-    final double metersPerDegreeLon = 111412.84 * cos(latRad) - 
-        93.5 * cos(3 * latRad);
-        
+    final double metersPerDegreeLat =
+        111132.92 - 559.82 * cos(2 * latRad) + 1.175 * cos(4 * latRad);
+    final double metersPerDegreeLon =
+        111412.84 * cos(latRad) - 93.5 * cos(3 * latRad);
+
     return area * metersPerDegreeLat * metersPerDegreeLon;
   }
 }
