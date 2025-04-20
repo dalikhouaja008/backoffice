@@ -53,9 +53,6 @@ class JuridicalValidationPage extends LayoutWidget {
                   ),
             ),
             const Divider(height: 24),
-            
-            // Contenu principal - SANS Expanded pour éviter l'erreur
-            // Autoinspection JuridicalValidationForm pour ne pas utiliser d'Expanded
             JuridicalValidationForm(land: land),
           ],
         ),
