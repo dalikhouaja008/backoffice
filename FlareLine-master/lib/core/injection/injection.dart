@@ -5,9 +5,15 @@ import 'package:flareline/core/services/openroute_service.dart';
 import 'package:flareline/core/services/secure_storage.dart';
 import 'package:flareline/core/services/session_service.dart';
 import 'package:flareline/data/datasources/auth_remote_data_source.dart';
+import 'package:flareline/data/datasources/expert_juridique_remote_data_source.dart';
 import 'package:flareline/data/repositories/auth_repo_impl.dart';
+import 'package:flareline/data/repositories/expert_juridique_repository_impl.dart';
 import 'package:flareline/domain/repositories/auth_repo.dart';
+import 'package:flareline/domain/repositories/expert_juridique_repository.dart';
+import 'package:flareline/domain/use_cases/expert_juridique/get_pending_lands.dart';
+import 'package:flareline/domain/use_cases/expert_juridique/validate_land.dart';
 import 'package:flareline/domain/use_cases/login_use_case.dart';
+import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_bloc.dart';
 import 'package:flareline/presentation/bloc/login/login_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -103,6 +109,14 @@ void setupInjection() {
     ),
   );
 
+  getIt.registerLazySingleton<ExpertJuridiqueRemoteDataSource>(
+  () => ExpertJuridiqueRemoteDataSource(
+    dio: getIt<Dio>(),
+    logger: getIt<Logger>(),
+    baseUrl: apiBaseUrl,
+  ),
+);
+
   // Repositories
   getIt.registerLazySingleton<GeometreRepository>(
     () => GeometreRepositoryImpl(
@@ -114,6 +128,12 @@ void setupInjection() {
   getIt.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(getIt<AuthRemoteDataSource>()),
   );
+
+  getIt.registerLazySingleton<ExpertJuridiqueRepository>(
+  () => ExpertJuridiqueRepositoryImpl(
+    remoteDataSource: getIt<ExpertJuridiqueRemoteDataSource>(),
+  ),
+);
 
   // Use cases
   getIt.registerLazySingleton(
@@ -127,6 +147,18 @@ void setupInjection() {
   getIt.registerLazySingleton(
     () => LoginUseCase(repository: getIt<AuthRepository>()),
   );
+
+  getIt.registerLazySingleton<GetPendingLandsExpertJuridique>(
+  () => GetPendingLandsExpertJuridique(
+    repository: getIt<ExpertJuridiqueRepository>(),
+  ),
+);
+
+getIt.registerLazySingleton<ValidateLandUseCaseExpertJuridique>(
+  () => ValidateLandUseCaseExpertJuridique(
+    repository: getIt<ExpertJuridiqueRepository>(),
+  ),
+);
 
   // Blocs
   getIt.registerFactory(
@@ -144,6 +176,14 @@ void setupInjection() {
       logger: getIt<Logger>(),
     ),
   );
+
+  getIt.registerFactory<ExpertJuridiqueBloc>(
+  () => ExpertJuridiqueBloc(
+    getPendingLands: getIt<GetPendingLandsExpertJuridique>(),
+    validateLand: getIt<ValidateLandUseCaseExpertJuridique>(),
+    logger: getIt<Logger>(),
+  ),
+);
 
   // Log initialization
   getIt<Logger>().log(
