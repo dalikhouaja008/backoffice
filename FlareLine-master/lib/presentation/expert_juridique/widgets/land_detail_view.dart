@@ -143,20 +143,25 @@ class LandDetailView extends StatelessWidget {
           ),
         ),
         
-        // Bouton fixe en bas (reste toujours visible)
         Container(
+          width: double.infinity, // Assurer que le container prend toute la largeur
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
-            border: Border(
-              top: BorderSide(color: Colors.grey.shade200),
-            ),
+            border: Border(top: BorderSide(color: Colors.grey.shade200)),
           ),
-          child: ButtonForm(
-            btnText: "Commencer la validation juridique",
-            type: ButtonType.primary.type,
-            //icon: Icons.gavel,
-            onPressed: onStartValidation,
+          child: ElevatedButton.icon( 
+            onPressed: () {
+              print("Bouton cliqué dans LandDetailView"); 
+              onStartValidation(); 
+            },
+            icon: const Icon(Icons.gavel),
+            label: const Text("Commencer la validation juridique"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: GlobalColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
           ),
         ),
       ],

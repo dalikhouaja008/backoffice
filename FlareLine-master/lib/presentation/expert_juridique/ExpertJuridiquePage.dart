@@ -3,6 +3,7 @@ import 'package:flareline/core/injection/injection.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_event.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_state.dart';
+import 'package:flareline/presentation/expert_juridique/juridical_validation_page.dart';
 import 'package:flareline/presentation/expert_juridique/widgets/LandsList.dart';
 import 'package:flareline/presentation/expert_juridique/widgets/land_detail_view.dart';
 
@@ -39,7 +40,7 @@ class ExpertJuridiqueContent extends StatelessWidget {
   Widget build(BuildContext context) {
     // Obtenir les dimensions de l'écran
     final screenSize = MediaQuery.of(context).size;
-    
+
     return SizedBox(
       width: screenSize.width,
       height: screenSize.height,
@@ -55,7 +56,7 @@ class ExpertJuridiqueContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  height: screenSize.height - 120, 
+                  height: screenSize.height - 120,
                   child: BlocBuilder<ExpertJuridiqueBloc, ExpertJuridiqueState>(
                     builder: (context, state) {
                       return _buildMainContent(context, state);
@@ -131,15 +132,24 @@ class ExpertJuridiqueContent extends StatelessWidget {
                       ? LandDetailView(
                           land: state.selectedLand!,
                           onStartValidation: () {
+                            // Debug
+                            print("Callback onStartValidation appelé");
+
+                            // Log
                             getIt<Logger>().log(
                               Level.info,
                               'Starting validation process',
                               error: {
                                 'landId': state.selectedLand!.id,
-                                'timestamp': DateTime.now().toString(),
-                                'userLogin': 'nesssim'
                               },
                             );
+
+                            // Navigation explicite vers la page de validation
+                            final route = MaterialPageRoute(
+                              builder: (context) => JuridicalValidationPage(
+                                  land: state.selectedLand!),
+                            );
+                            Navigator.of(context).push(route);
                           },
                         )
                       : const Center(
