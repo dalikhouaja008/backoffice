@@ -13,9 +13,13 @@ import 'package:flareline_uikit/components/card/common_card.dart';
 import 'package:flareline_uikit/components/forms/outborder_text_form_field.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Widget de formulaire de validation juridique
 class JuridicalValidationForm extends StatefulWidget {
-  const JuridicalValidationForm({super.key});
+  final Land land;
+  
+  const JuridicalValidationForm({
+    super.key,
+    required this.land,
+  });
 
   @override
   State<JuridicalValidationForm> createState() => _JuridicalValidationFormState();
@@ -49,12 +53,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
   Widget build(BuildContext context) {
     return BlocBuilder<ExpertJuridiqueBloc, ExpertJuridiqueState>(
       builder: (context, state) {
-        if (state is ExpertJuridiqueLoaded && state.selectedLand != null) {
-          return _buildForm(context, state.selectedLand!);
-        }
-        return const Center(
-          child: Text('Sélectionnez un terrain pour commencer la validation juridique'),
-        );
+          return _buildForm(context, widget.land);
       },
     );
   }
