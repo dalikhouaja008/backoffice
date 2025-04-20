@@ -21,7 +21,7 @@ class GeometreRemoteDataSource {
     logger.i('GeometreRemoteDataSource: Récupération des terrains sans validation ');
 
     // Appel API existant...
-    final response = await dio.get('$baseUrl/lands/without-geometer-validation');
+    final response = await dio.get('$baseUrl/lands/without-role-validation');
     
     if (response.statusCode == 200) {
       final responseData = response.data;

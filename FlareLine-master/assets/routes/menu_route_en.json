@@ -6,6 +6,11 @@
         "icon": "assets/sidebar/map.svg",
         "menuName": "Géomètre",
         "path": "/geometre"
+      },
+      {
+        "icon": "assets/sidebar/gavel.svg",
+        "menuName": "Expert Juridique",
+        "path": "/expert_juridique"
       }
     ]
   },
