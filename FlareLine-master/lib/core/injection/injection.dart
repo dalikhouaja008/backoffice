@@ -29,6 +29,9 @@ import 'package:flareline/core/network/auth_interceptor.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+// Ajout de l'import pour DocuSign
+import 'package:flareline/core/services/docusign_service.dart';
+
 final getIt = GetIt.instance;
 
 void setupInjection() {
@@ -39,6 +42,9 @@ void setupInjection() {
   getIt.registerLazySingleton(() => SecureStorageService());
   getIt.registerLazySingleton(() => SessionService());
   getIt.registerLazySingleton(() => RouteGuard(getIt<SessionService>()));
+
+  // Enregistrement du service DocuSign
+  getIt.registerLazySingleton<DocuSignService>(() => DocuSignService());
 
   // Configuration de l'URL de l'API en fonction de la plateforme
   final String apiBaseUrl = _getApiBaseUrl();

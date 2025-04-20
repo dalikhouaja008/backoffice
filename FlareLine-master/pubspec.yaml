@@ -116,6 +116,8 @@ dependencies:
   geolocator: ^13.0.4
   flutter_secure_storage: ^9.2.4
   cached_network_image: ^3.4.1
+  flutter_web_auth: ^0.6.0
+  go_router: ^15.0.0
 
 
 dependency_overrides:
