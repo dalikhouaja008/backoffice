@@ -31,6 +31,16 @@
 
   <title>Flareline-Free Flutter Dashboard</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    window.addEventListener('message', function(event) {
+      console.log('Message reçu dans index.html:', event.data);
+      
+      // Transférer le message à l'application Flutter
+      if (window.flutter_inappwebview) {
+        window.flutter_inappwebview.callHandler('messageReceived', event.data);
+      }
+    });
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
