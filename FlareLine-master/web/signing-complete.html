@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Signature terminée</title>
+  <script>
+    window.onload = function() {
+      console.log("Page de signature complète chargée");
+      
+      // Envoyer un message à la fenêtre d'origine
+      if (window.opener) {
+        try {
+          window.opener.postMessage('signing_complete', '*');
+          console.log("Message envoyé à la fenêtre parent");
+        } catch (e) {
+          console.error("Erreur d'envoi de message:", e);
+        }
+      } else {
+        console.log("Pas de fenêtre parente trouvée");
+      }
+      
+      // Fermer cette fenêtre après un délai
+      setTimeout(function() {
+        window.close();
+      }, 3000);
+    };
+  </script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 100px;
+    }
+    #status {
+      font-size: 18px;
+      margin: 20px 0;
+      color: green;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h2>Signature DocuSign</h2>
+  <div id="status">Signature terminée avec succès!</div>
+  <p>Cette fenêtre se fermera automatiquement...</p>
+  <button onclick="window.close()">Fermer maintenant</button>
+</body>
+</html>

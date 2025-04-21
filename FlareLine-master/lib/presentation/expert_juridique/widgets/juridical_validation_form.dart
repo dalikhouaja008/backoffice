@@ -1,6 +1,10 @@
 // lib/presentation/expert_juridique/widgets/juridical_validation_form.dart
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:html' as html;
+import 'dart:math';
+import 'package:flareline/core/config/api_config.dart';
 import 'package:flareline/core/services/docusign_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
@@ -16,25 +20,23 @@ import 'package:flareline_uikit/components/buttons/button_form.dart';
 import 'package:flareline_uikit/components/card/common_card.dart';
 import 'package:flareline_uikit/components/forms/outborder_text_form_field.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-// Nouveaux imports pour DocuSign
 import 'package:flareline/core/injection/injection.dart';
-
 
 class JuridicalValidationForm extends StatefulWidget {
   final Land land;
-  
+
   const JuridicalValidationForm({
     super.key,
     required this.land,
   });
 
   @override
-  State<JuridicalValidationForm> createState() => _JuridicalValidationFormState();
+  State<JuridicalValidationForm> createState() =>
+      _JuridicalValidationFormState();
 }
 
 class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
-  // Contrôleurs et états du formulaire
+// Contrôleurs et états du formulaire
   final _formKey = GlobalKey<FormState>();
   final _commentsController = TextEditingController();
   bool _isValid = false;
@@ -56,17 +58,36 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
   String? _envelopeId;
   String? _signatureStatus;
   bool _isDocuSignReady = false;
+  
+  // Déclarez ces variables ici, au niveau de la classe
+  Timer? _tokenCheckTimer;
+  Timer? _signatureCheckTimer;
 
   @override
   void initState() {
     super.initState();
     // Vérifier si DocuSign est authentifié
     _checkDocuSignAuth();
+    
+    // Ajouter un écouteur pour recevoir des messages des fenêtres popup
+    html.window.addEventListener('message', _handleWindowMessage);
+  }
+  
+  // Gestionnaire de messages entre fenêtres
+  void _handleWindowMessage(event) {
+    html.MessageEvent e = event as html.MessageEvent;
+    print("Message reçu : ${e.data}");
+    
+    if (e.data == 'signing_complete') {
+      print("Signature terminée!");
+      _refreshSignatureStatus();
+    }
   }
 
   // Vérifier l'authentification DocuSign
   Future<void> _checkDocuSignAuth() async {
     final isAuthenticated = _docuSignService.checkExistingAuth();
+    print("État d'authentification DocuSign: $isAuthenticated");
     setState(() {
       _isDocuSignReady = isAuthenticated;
     });
@@ -75,8 +96,15 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
   @override
   void dispose() {
     _commentsController.dispose();
+    // Ces variables sont maintenant définies avant d'être utilisées
+    _tokenCheckTimer?.cancel();
+    _signatureCheckTimer?.cancel();
+    // Retirer l'écouteur d'événements
+    html.window.removeEventListener('message', _handleWindowMessage);
     super.dispose();
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +146,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
             // Section commentaires
             _buildCommentsField(land),
             const SizedBox(height: 16),
-            
+
             // Nouvelle section DocuSign
             _buildDocuSignSection(land),
             const SizedBox(height: 16),
@@ -189,7 +217,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Titre
         OutBorderTextFormField(
           labelText: "Titre",
@@ -197,7 +225,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
           enabled: false,
         ),
         const SizedBox(height: 8),
-        
+
         // Localisation
         OutBorderTextFormField(
           labelText: "Localisation",
@@ -205,7 +233,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
           enabled: false,
         ),
         const SizedBox(height: 8),
-        
+
         // Surface
         OutBorderTextFormField(
           labelText: "Surface déclarée",
@@ -213,14 +241,14 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
           enabled: false,
         ),
         const SizedBox(height: 8),
-        
+
         // Propriétaire
         OutBorderTextFormField(
           labelText: "Adresse du propriétaire",
           hintText: land.ownerAddress,
           enabled: false,
         ),
-        
+
         // ID Blockchain
         const SizedBox(height: 8),
         OutBorderTextFormField(
@@ -235,7 +263,8 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
   /// Construit la section de liste des documents
   Widget _buildDocumentListSection(Land land) {
     // Vérifier si des documents sont disponibles
-    final hasDocuments = land.documentUrls.isNotEmpty || land.ipfsCIDs.isNotEmpty;
+    final hasDocuments =
+        land.documentUrls.isNotEmpty || land.ipfsCIDs.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,7 +305,8 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
               children: [
                 // En-tête de la liste
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.grey.shade100,
                     borderRadius: const BorderRadius.only(
@@ -301,16 +331,16 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
                     ],
                   ),
                 ),
-                
+
                 // Divider
                 const Divider(height: 1),
-                
+
                 // Liste des documents
                 ...land.documentUrls.asMap().entries.map((entry) {
                   final int index = entry.key;
                   final String url = entry.value;
                   final fileName = url.split('/').last;
-                  
+
                   return _buildDocumentItem(
                     context: context,
                     fileName: fileName,
@@ -325,7 +355,8 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
                   padding: const EdgeInsets.all(16.0),
                   child: ValidationCheckbox(
                     value: _documentsAreValid,
-                    label: "Je confirme avoir vérifié et validé tous les documents juridiques ci-dessus",
+                    label:
+                        "Je confirme avoir vérifié et validé tous les documents juridiques ci-dessus",
                     checkColor: GlobalColors.primary,
                     onChanged: (value) {
                       setState(() {
@@ -382,8 +413,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
             ],
           ),
         ),
-        if (index < totalCount - 1)
-          const Divider(height: 1, indent: 70),
+        if (index < totalCount - 1) const Divider(height: 1, indent: 70),
       ],
     );
   }
@@ -435,7 +465,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
             ),
           ),
         ),
-        
+
         const Padding(
           padding: EdgeInsets.only(bottom: 12.0),
           child: Text(
@@ -446,32 +476,32 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
             ),
           ),
         ),
-        
+
         // Liste des vérifications
         _buildLegalCheckbox(
           'title_valid',
           'Les titres de propriété sont authentiques et valides',
           'Vérifiez l\'authenticité et la validité des documents de propriété',
         ),
-        
+
         _buildLegalCheckbox(
           'no_disputes',
           'Aucun litige en cours concernant ce terrain',
           'Vérifiez l\'absence de contestations ou réclamations',
         ),
-        
+
         _buildLegalCheckbox(
           'boundaries_valid',
           'Les limites du terrain sont correctement définies',
           'Vérifiez la conformité des délimitations cadastrales',
         ),
-        
+
         _buildLegalCheckbox(
           'usage_rights',
           'Les droits d\'usage sont conformes à la réglementation',
           'Vérifiez les droits et restrictions d\'utilisation du terrain',
         ),
-        
+
         // Indication du statut global
         const SizedBox(height: 16),
         _buildVerificationStatus(),
@@ -489,7 +519,8 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
         onChanged: (value) {
           setState(() {
             _legalVerifications[key] = value ?? false;
-            _legalVerificationsComplete = _legalVerifications.values.every((v) => v);
+            _legalVerificationsComplete =
+                _legalVerifications.values.every((v) => v);
           });
         },
       ),
@@ -501,11 +532,11 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
     final completedCount = _legalVerifications.values.where((v) => v).length;
     final totalCount = _legalVerifications.length;
     final progress = totalCount > 0 ? completedCount / totalCount : 0.0;
-    
+
     // Déterminer le statut
     Color statusColor;
     String statusText;
-    
+
     if (progress == 0) {
       statusColor = Colors.grey;
       statusText = 'Aucune vérification effectuée';
@@ -516,7 +547,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
       statusColor = GlobalColors.success;
       statusText = 'Toutes les vérifications sont complètes';
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -529,7 +560,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
         children: [
           Row(
             children: [
-              Icon(progress == 1 ? Icons.check_circle : Icons.info_outline, 
+              Icon(progress == 1 ? Icons.check_circle : Icons.info_outline,
                   color: statusColor, size: 18),
               const SizedBox(width: 8),
               Text(
@@ -591,7 +622,8 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
         OutBorderTextFormField(
           controller: _commentsController,
           labelText: "Commentaires juridiques",
-          hintText: "Ajoutez vos observations juridiques sur le terrain et les documents",
+          hintText:
+              "Ajoutez vos observations juridiques sur le terrain et les documents",
           maxLines: 5,
           validator: (value) {
             if (value == null || value.isEmpty) {
@@ -623,7 +655,8 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
   /// Section DocuSign pour la signature électronique
   Widget _buildDocuSignSection(Land land) {
     // Vérifier si des documents sont disponibles
-    final hasDocuments = land.documentUrls.isNotEmpty || land.ipfsCIDs.isNotEmpty;
+    final hasDocuments =
+        land.documentUrls.isNotEmpty || land.ipfsCIDs.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -662,14 +695,14 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           // Description
           const Text(
             'Utilisez DocuSign pour faire signer électroniquement les documents juridiques du terrain.',
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
           const SizedBox(height: 16),
-          
+
           // Message si aucun document n'est disponible
           if (!hasDocuments)
             Container(
@@ -692,21 +725,23 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
                 ],
               ),
             ),
-            
+
           // Statut de signature si applicable
-          if (_envelopeId != null)
-            _buildSignatureStatus(),
-          
+          if (_envelopeId != null) _buildSignatureStatus(),
+
           const SizedBox(height: 16),
-          
+
           // Boutons d'action
-          if (hasDocuments) 
+          if (hasDocuments)
             Row(
               children: [
                 if (!_isDocuSignReady)
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: _connectToDocuSign,
+                      onPressed: () {
+                        print("Connexion à DocuSign en cours...");
+                        _connectToDocuSign();
+                      },
                       icon: const Icon(Icons.login),
                       label: const Text('Se connecter à DocuSign'),
                       style: ElevatedButton.styleFrom(
@@ -719,7 +754,10 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
                 if (_isDocuSignReady && _envelopeId == null)
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _initiateSignatureProcess(land),
+                      onPressed: () {
+                        print("Démarrage du processus de signature...");
+                        _initiateSignatureProcess(land);
+                      },
                       icon: const Icon(Icons.edit_document),
                       label: const Text('Envoyer pour signature'),
                       style: ElevatedButton.styleFrom(
@@ -732,7 +770,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
                 if (_envelopeId != null) ...[
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: _refreshSignatureStatus,
+                      onPressed: () => _refreshSignatureStatus(),
                       icon: const Icon(Icons.refresh),
                       label: const Text('Actualiser le statut'),
                       style: ElevatedButton.styleFrom(
@@ -761,7 +799,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
   Widget _buildSignatureStatus() {
     Color statusColor = Colors.grey;
     IconData statusIcon = Icons.hourglass_empty;
-    
+
     switch (_signatureStatus?.toLowerCase()) {
       case 'envoyé':
         statusColor = Colors.orange;
@@ -780,11 +818,15 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
         statusColor = Colors.red;
         statusIcon = Icons.cancel;
         break;
+      case 'en cours de signature':
+        statusColor = Colors.blue;
+        statusIcon = Icons.edit_document;
+        break;
       default:
         statusColor = Colors.grey;
         statusIcon = Icons.hourglass_empty;
     }
-    
+
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(12),
@@ -802,7 +844,8 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
               const SizedBox(width: 8),
               Text(
                 'Statut de la signature: ${_signatureStatus ?? "En attente"}',
-                style: TextStyle(color: statusColor, fontWeight: FontWeight.w500),
+                style:
+                    TextStyle(color: statusColor, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -820,97 +863,434 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
   }
 
   // Connexion à DocuSign
-  void _connectToDocuSign() {
-    _docuSignService.initiateAuthentication();
+void _connectToDocuSign() async {
+  print("=== CONNEXION À DOCUSIGN ===");
+  
+  // Vérifier l'état actuel
+  String? existingToken = _getTokenFromLocalStorage();
+  if (existingToken != null) {
+    print("Token existant trouvé dans localStorage: ${existingToken.substring(0, 10)}...");
+  } else {
+    print("Aucun token existant dans localStorage");
   }
-
-  // Méthode pour télécharger le document du terrain et l'envoyer pour signature
-Future<void> _initiateSignatureProcess(Land land) async {
-  // Vérifier si des documents sont disponibles
-  if (land.documentUrls.isEmpty && land.ipfsCIDs.isEmpty) {
+  
+  // Si déjà authentifié
+  if (_docuSignService.checkExistingAuth()) {
+    print("Le service indique que l'authentification est déjà active");
+    setState(() {
+      _isDocuSignReady = true;
+    });
+    
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Aucun document disponible pour signature'),
-        backgroundColor: Colors.red,
+        content: Text('Déjà connecté à DocuSign'),
+        backgroundColor: Colors.green,
       ),
     );
     return;
   }
   
-  // Afficher un indicateur de chargement
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => const Center(child: CircularProgressIndicator()),
+  // Effacer tout token existant pour forcer une nouvelle authentification
+  _clearTokens();
+  print("Tokens précédents effacés");
+  
+  // Afficher un message pour l'utilisateur
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Connexion à DocuSign en cours... Attendez la fenêtre d\'authentification.'),
+      duration: Duration(seconds: 5),
+    ),
   );
   
-  try {
-    // Récupérer le premier document du terrain
-    final documentUrl = land.documentUrls.isNotEmpty 
-        ? land.documentUrls.first 
-        : 'https://ipfs.io/ipfs/${land.ipfsCIDs.first}';
+  // Lancer l'authentification
+  print("Lancement de l'authentification...");
+  _docuSignService.initiateAuthentication();
+  
+  // Attendre que l'utilisateur ait une chance de s'authentifier AVANT de vérifier le token
+  print("Attente de 10 secondes avant de commencer les vérifications...");
+  await Future.delayed(const Duration(seconds: 10));
+  print("Début des vérifications de token...");
+  
+  // Ajouter une vérification périodique APRÈS le délai
+  if (mounted) {
+    _startTokenCheckTimer();
+  }
+}
+
+// Vérification périodique du token
+void _startTokenCheckTimer() {
+  _tokenCheckTimer?.cancel(); // Annuler tout timer existant
+  
+  print("Démarrage de la vérification périodique du token...");
+  
+  int attemptCount = 0;
+  const maxAttempts = 60; // 2 minutes (avec intervalle de 2 secondes)
+  
+  _tokenCheckTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    attemptCount++;
     
-    // Télécharger le document
-    final response = await http.get(Uri.parse(documentUrl));
-    if (response.statusCode != 200) {
-      throw Exception('Impossible de télécharger le document');
+    print("Vérification du token (tentative $attemptCount/$maxAttempts)...");
+    
+    // Vérifier directement le localStorage
+    final token = _getTokenFromLocalStorage();
+    if (token != null && token.isNotEmpty) {
+      print("=== TOKEN TROUVÉ DANS LOCALSTORAGE ===");
+      print("Token (premiers caractères): ${token.substring(0, min(10, token.length))}...");
+      
+      timer.cancel();
+      
+      // Mettre à jour le service DocuSign
+      _docuSignService.setAccessToken(token);
+      
+      if (mounted) {
+        setState(() {
+          _isDocuSignReady = true;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Authentification DocuSign réussie!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      return;
     }
     
-    // Convertir le document en base64
-    final documentBytes = response.bodyBytes;
-    final documentBase64 = base64Encode(documentBytes);
-    
-    // Email de l'expert juridique actuel (à adapter selon votre système d'authentification)
-    final expertEmail = 'expert@flareline.com'; 
-    
-    // Créer la demande de signature via DocuSign avec un seul signataire (l'expert juridique)
-    _envelopeId = await _docuSignService.createSignatureRequest(
-      land: land,
-      documentBase64: documentBase64,
-      signerEmail: expertEmail,
-      signerName: 'Expert Juridique',
-      // Ne pas inclure les paramètres secondarySignerEmail et secondarySignerName
-    );
-    
-    // Fermer l'indicateur de chargement
-    Navigator.of(context).pop();
-    
-    if (_envelopeId != null) {
-      setState(() {
-        _signatureStatus = 'Envoyé';
-      });
+    // Vérifier aussi via le service
+    if (_docuSignService.checkExistingAuth()) {
+      print("Token trouvé via le service DocuSign!");
       
+      timer.cancel();
+      
+      if (mounted) {
+        setState(() {
+          _isDocuSignReady = true;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Authentification DocuSign réussie!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      return;
+    }
+    
+    // Arrêter après un certain nombre de tentatives
+    if (attemptCount >= maxAttempts) {
+      print("Abandon de la vérification du token après $maxAttempts tentatives");
+      timer.cancel();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Échec de l\'authentification DocuSign. Veuillez réessayer.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  });
+}
+// Récupérer le token du localStorage (utilitaire)
+String? _getTokenFromLocalStorage() {
+  try {
+    return html.window.localStorage['docusign_token'];
+  } catch (e) {
+    print("Erreur lors de l'accès au localStorage: $e");
+    return null;
+  }
+}
+
+// Effacer les tokens (utilitaire)
+void _clearTokens() {
+  try {
+    html.window.localStorage.remove('docusign_token');
+    html.window.localStorage.remove('docusign_token_expiry');
+  } catch (e) {
+    print("Erreur lors de l'effacement des tokens: $e");
+  }
+}
+
+
+  Future<void> _initiateSignatureProcess(Land land) async {
+    // Vérifier si des documents sont disponibles
+    if (land.documentUrls.isEmpty && land.ipfsCIDs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Document envoyé pour signature avec succès'),
-          backgroundColor: Colors.green,
+          content: Text('Aucun document disponible pour signature'),
+          backgroundColor: Colors.red,
         ),
       );
-    } else {
+      return;
+    }
+
+    // Vérifier l'authentification DocuSign
+    if (!_isDocuSignReady) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Échec de l\'envoi du document pour signature'),
+          content:
+              Text('Veuillez vous connecter à DocuSign avant de continuer'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Afficher un indicateur de chargement
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      print("Préparation du document pour signature...");
+
+      // Récupérer le premier document du terrain
+      final documentUrl = land.documentUrls.isNotEmpty
+          ? land.documentUrls.first
+          : 'https://ipfs.io/ipfs/${land.ipfsCIDs.first}';
+
+      // Télécharger le document
+      final response = await http.get(Uri.parse(documentUrl));
+      if (response.statusCode != 200) {
+        throw Exception('Impossible de télécharger le document');
+      }
+
+      // Convertir le document en base64
+      final documentBytes = response.bodyBytes;
+      final documentBase64 = base64Encode(documentBytes);
+
+      print("Document téléchargé et encodé en base64");
+
+      // Email de l'expert juridique actuel
+      final expertEmail = 'expert@flareline.com';
+
+      // 1. Créer l'enveloppe pour signature intégrée
+      final envelopeResult =
+          await _docuSignService.createEnvelopeForEmbeddedSigning(
+        land: land,
+        documentBase64: documentBase64,
+        signerEmail: expertEmail,
+        signerName: 'Expert Juridique',
+      );
+
+      if (!envelopeResult['success']) {
+        throw Exception(envelopeResult['error'] ??
+            'Erreur lors de la création de l\'enveloppe');
+      }
+
+      // Récupérer l'ID de l'enveloppe
+      final envelopeId = envelopeResult['envelopeId'];
+      print("Enveloppe créée: $envelopeId");
+
+      // Stocker l'ID de l'enveloppe
+      _envelopeId = envelopeId;
+      setState(() {
+        _signatureStatus = 'En attente de signature';
+      });
+
+      // 2. Obtenir l'URL de signature intégrée
+      final signingResult = await _docuSignService.createEmbeddedSigningUrl(
+        envelopeId: envelopeId,
+        signerEmail: expertEmail,
+        signerName: 'Expert Juridique',
+      );
+
+      // Fermer l'indicateur de chargement
+      Navigator.of(context).pop();
+
+      if (signingResult['success']) {
+        final signingUrl = signingResult['signingUrl'];
+        print("URL de signature générée: $signingUrl");
+
+        setState(() {
+          _signatureStatus = 'En cours de signature';
+        });
+
+        // Ouvrir l'URL dans une nouvelle fenêtre
+        html.WindowBase? signingWindow = html.window.open(
+            signingUrl, 'DocuSignSigning', 'width=1000,height=800,toolbar=0');
+
+        // Vérifier si la fenêtre a été ouverte avec succès
+        if (signingWindow == null || signingWindow.closed == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Impossible d\'ouvrir la fenêtre de signature. Vérifiez les bloqueurs de pop-up.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        // Ajouter un écouteur d'événements pour détecter la fin de la signature
+        _startSignatureStatusCheck();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'La fenêtre de signature a été ouverte. Veuillez compléter le processus.'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      } else {
+        throw Exception('Erreur: ${signingResult['error']}');
+      }
+    } catch (e) {
+      print("Erreur: ${e.toString()}");
+
+      // Fermer l'indicateur de chargement
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
     }
-  } catch (e) {
-    // Fermer l'indicateur de chargement
-    Navigator.of(context).pop();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Erreur: ${e.toString()}'),
-        backgroundColor: Colors.red,
-      ),
-    );
   }
-}
 
-  // Rafraîchir le statut de la signature
-  Future<void> _refreshSignatureStatus() async {
+  // Méthode pour démarrer la vérification périodique du statut de signature
+  void _startSignatureStatusCheck() {
+    // Annuler tout timer existant
+    _signatureCheckTimer?.cancel();
+
+    print("Démarrage de la vérification périodique du statut de signature...");
+
+    // Créer un nouveau timer qui vérifie toutes les 5 secondes
+    _signatureCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (_envelopeId == null) {
+        _signatureCheckTimer?.cancel();
+        return;
+      }
+
+      print("Vérification périodique du statut de l'enveloppe $_envelopeId");
+      _refreshSignatureStatus(silent: true);
+    });
+  }
+
+  // Mettre à jour le statut de la signature
+  Future<void> _refreshSignatureStatus({bool silent = false}) async {
     if (_envelopeId == null) return;
-    
+
+    // Afficher un indicateur de chargement uniquement si pas en mode silencieux
+    if (!silent) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: SizedBox(
+            height: 50,
+            width: 50,
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    try {
+      print("Vérification du statut de l'enveloppe: $_envelopeId");
+      final statusData =
+          await _docuSignService.checkEnvelopeStatus(_envelopeId!);
+
+      // Fermer l'indicateur de chargement si pas en mode silencieux
+      if (!silent && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      if (statusData != null) {
+        final status = statusData['status'];
+        print("Statut récupéré: $status");
+
+        setState(() {
+          switch (status) {
+            case 'sent':
+              _signatureStatus = 'Envoyé';
+              break;
+            case 'delivered':
+              _signatureStatus = 'Remis';
+              break;
+            case 'completed':
+              _signatureStatus = 'Terminé';
+              // Arrêter le timer
+              _signatureCheckTimer?.cancel();
+              break;
+            case 'signed':
+              _signatureStatus = 'Signé';
+              // Arrêter le timer
+              _signatureCheckTimer?.cancel();
+              break;
+            case 'declined':
+              _signatureStatus = 'Refusé';
+              // Arrêter le timer
+              _signatureCheckTimer?.cancel();
+              break;
+            case 'created':
+              _signatureStatus = 'En attente';
+              break;
+            default:
+              _signatureStatus = status;
+          }
+        });
+
+        // Afficher une notification si le statut est terminal et pas en mode silencieux
+        if (!silent && ['completed', 'signed', 'declined'].contains(status)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Le document a été ${status == 'declined' ? 'refusé' : 'signé'} avec succès'),
+              backgroundColor: status == 'declined' ? Colors.red : Colors.green,
+            ),
+          );
+        }
+      } else if (!silent) {
+        print("Impossible de récupérer le statut de la signature");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de récupérer le statut de la signature'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print("Erreur lors de la vérification du statut: $e");
+
+      // Fermer l'indicateur de chargement si pas en mode silencieux
+      if (!silent && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Télécharger le document signé
+  Future<void> _downloadSignedDocument() async {
+    if (_envelopeId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Aucun document signé disponible'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     // Afficher un indicateur de chargement
     showDialog(
       context: context,
@@ -923,61 +1303,37 @@ Future<void> _initiateSignatureProcess(Land land) async {
         ),
       ),
     );
-    
+
     try {
-      final statusData = await _docuSignService.checkEnvelopeStatus(_envelopeId!);
-      
+      print("Téléchargement du document signé pour l'enveloppe: $_envelopeId");
+      // Appeler la méthode getSignedDocument du service DocuSign
+      final documentUrl =
+          await _docuSignService.getSignedDocument(_envelopeId!);
+
       // Fermer l'indicateur de chargement
       Navigator.of(context).pop();
-      
-      if (statusData != null) {
-        setState(() {
-          final status = statusData['status'];
-          switch (status) {
-            case 'sent': _signatureStatus = 'Envoyé'; break;
-            case 'delivered': _signatureStatus = 'Remis'; break;
-            case 'completed': _signatureStatus = 'Terminé'; break;
-            case 'signed': _signatureStatus = 'Signé'; break;
-            case 'declined': _signatureStatus = 'Refusé'; break;
-            default: _signatureStatus = status;
-          }
-        });
-        
+
+      if (documentUrl != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Statut de signature actualisé'),
+            content: Text('Le document signé est en cours de téléchargement'),
             backgroundColor: Colors.green,
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Impossible de récupérer le statut de la signature'),
+            content: Text('Impossible de télécharger le document signé'),
             backgroundColor: Colors.red,
           ),
         );
       }
     } catch (e) {
+      print("Erreur lors du téléchargement du document: $e");
+
       // Fermer l'indicateur de chargement
       Navigator.of(context).pop();
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 
-  // Télécharger le document signé
-  Future<void> _downloadSignedDocument() async {
-    if (_envelopeId == null) return;
-    
-    try {
-      await _docuSignService.getSignedDocument(_envelopeId!);
-      // Le téléchargement est géré par le service DocuSign
-    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Erreur lors du téléchargement: ${e.toString()}'),
@@ -990,13 +1346,13 @@ Future<void> _initiateSignatureProcess(Land land) async {
   /// Génère un commentaire juridique basé sur les informations du terrain
   void _generateComment(Land land) {
     // Vérifier si des documents sont disponibles
-    final hasDocuments = land.documentUrls.isNotEmpty || land.ipfsCIDs.isNotEmpty;
+    final hasDocuments =
+        land.documentUrls.isNotEmpty || land.ipfsCIDs.isNotEmpty;
 
     // Construction du commentaire complet
     final StringBuilder = StringBuffer();
 
-    StringBuilder.writeln(
-        'RAPPORT DE VALIDATION JURIDIQUE');
+    StringBuilder.writeln('RAPPORT DE VALIDATION JURIDIQUE');
     StringBuilder.writeln('Terrain: "${land.title}" situé à ${land.location}');
     StringBuilder.writeln('ID Blockchain: ${land.blockchainLandId}');
     StringBuilder.writeln();
@@ -1011,54 +1367,58 @@ Future<void> _initiateSignatureProcess(Land land) async {
         StringBuilder.writeln('✓ Conformité avec le plan local d\'urbanisme');
       } else {
         StringBuilder.writeln('DOCUMENTS JURIDIQUES - STATUT:');
-        StringBuilder.writeln('⚠ Vérification des titres de propriété nécessaire');
+        StringBuilder.writeln(
+            '⚠ Vérification des titres de propriété nécessaire');
         StringBuilder.writeln('⚠ Statut des éventuels litiges à confirmer');
-        StringBuilder.writeln('⚠ Conformité aux règles d\'urbanisme à vérifier');
+        StringBuilder.writeln(
+            '⚠ Conformité aux règles d\'urbanisme à vérifier');
       }
       StringBuilder.writeln();
     } else {
       StringBuilder.writeln('ABSENCE DE DOCUMENTS:');
-      StringBuilder.writeln('⚠ Aucun document juridique n\'a été fourni pour ce terrain.');
-      StringBuilder.writeln('⚠ Une validation complète des titres de propriété et des droits associés est nécessaire avant toute tokenisation.');
+      StringBuilder.writeln(
+          '⚠ Aucun document juridique n\'a été fourni pour ce terrain.');
+      StringBuilder.writeln(
+          '⚠ Une validation complète des titres de propriété et des droits associés est nécessaire avant toute tokenisation.');
       StringBuilder.writeln();
     }
 
     // Section des vérifications juridiques
     StringBuilder.writeln('VÉRIFICATIONS JURIDIQUES:');
-    
+
     for (final entry in _legalVerifications.entries) {
       final isValid = entry.value;
       final prefix = isValid ? "✓" : "⚠";
-      
+
       String description;
       switch (entry.key) {
         case 'title_valid':
-          description = isValid 
-              ? 'Titres de propriété authentiques et valides' 
+          description = isValid
+              ? 'Titres de propriété authentiques et valides'
               : 'Vérification supplémentaire des titres nécessaire';
           break;
         case 'no_disputes':
-          description = isValid 
+          description = isValid
               ? 'Aucun litige en cours identifié'
               : 'Recherche de litiges potentiels recommandée';
           break;
         case 'boundaries_valid':
-          description = isValid 
+          description = isValid
               ? 'Délimitations cadastrales correctement établies'
               : 'Clarification des limites du terrain nécessaire';
           break;
         case 'usage_rights':
-          description = isValid 
+          description = isValid
               ? 'Droits d\'usage conformes à la réglementation en vigueur'
               : 'Vérification des droits d\'usage recommandée';
           break;
         default:
           description = 'Point de vérification non spécifié';
       }
-      
+
       StringBuilder.writeln('$prefix $description');
     }
-    
+
     StringBuilder.writeln();
 
     // Informations sur le propriétaire
@@ -1070,7 +1430,8 @@ Future<void> _initiateSignatureProcess(Land land) async {
     // Information sur la signature électronique
     if (_envelopeId != null) {
       StringBuilder.writeln('SIGNATURE ÉLECTRONIQUE:');
-      StringBuilder.writeln('✓ Document envoyé pour signature électronique via DocuSign');
+      StringBuilder.writeln(
+          '✓ Document envoyé pour signature électronique via DocuSign');
       StringBuilder.writeln('- ID de l\'enveloppe: $_envelopeId');
       StringBuilder.writeln('- Statut actuel: $_signatureStatus');
       StringBuilder.writeln();
@@ -1078,14 +1439,18 @@ Future<void> _initiateSignatureProcess(Land land) async {
 
     // Conclusion générale
     final allVerificationsComplete = _legalVerifications.values.every((v) => v);
-    
+
     StringBuilder.writeln('CONCLUSION:');
     if (allVerificationsComplete && _documentsAreValid) {
-      StringBuilder.writeln('✓ Le terrain a été examiné du point de vue juridique et ne présente aucun obstacle légal à sa tokenisation.');
-      StringBuilder.writeln('✓ Les documents sont juridiquement valides et conformes à la réglementation en vigueur.');
+      StringBuilder.writeln(
+          '✓ Le terrain a été examiné du point de vue juridique et ne présente aucun obstacle légal à sa tokenisation.');
+      StringBuilder.writeln(
+          '✓ Les documents sont juridiquement valides et conformes à la réglementation en vigueur.');
     } else {
-      StringBuilder.writeln('⚠ Des vérifications juridiques supplémentaires sont nécessaires avant de procéder à la tokenisation.');
-      StringBuilder.writeln('⚠ Points spécifiques nécessitant une attention particulière: ${_getIncompleteVerifications()}');
+      StringBuilder.writeln(
+          '⚠ Des vérifications juridiques supplémentaires sont nécessaires avant de procéder à la tokenisation.');
+      StringBuilder.writeln(
+          '⚠ Points spécifiques nécessitant une attention particulière: ${_getIncompleteVerifications()}');
     }
 
     // Mettre à jour le contrôleur de texte
@@ -1105,7 +1470,7 @@ Future<void> _initiateSignatureProcess(Land land) async {
   /// Obtenir la liste des vérifications incomplètes
   String _getIncompleteVerifications() {
     List<String> incomplete = [];
-    
+
     if (!(_legalVerifications['title_valid'] ?? false)) {
       incomplete.add('titres de propriété');
     }
@@ -1118,9 +1483,9 @@ Future<void> _initiateSignatureProcess(Land land) async {
     if (!(_legalVerifications['usage_rights'] ?? false)) {
       incomplete.add('droits d\'usage');
     }
-    
+
     if (incomplete.isEmpty) return 'aucun';
-    
+
     return incomplete.join(', ');
   }
 
@@ -1128,7 +1493,8 @@ Future<void> _initiateSignatureProcess(Land land) async {
   Widget _buildValidationCheckbox() {
     return ValidationCheckbox(
       value: _isValid,
-      label: "Je confirme que les informations juridiques saisies sont correctes",
+      label:
+          "Je confirme que les informations juridiques saisies sont correctes",
       checkColor: GlobalColors.primary,
       onChanged: (value) {
         setState(() {
@@ -1171,11 +1537,13 @@ Future<void> _initiateSignatureProcess(Land land) async {
       }
 
       // Vérifier si des documents sont disponibles et si la case de validation est cochée
-      final hasDocuments = land.documentUrls.isNotEmpty || land.ipfsCIDs.isNotEmpty;
+      final hasDocuments =
+          land.documentUrls.isNotEmpty || land.ipfsCIDs.isNotEmpty;
       if (hasDocuments && !_documentsAreValid) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Veuillez confirmer que les documents juridiques sont valides'),
+            content: Text(
+                'Veuillez confirmer que les documents juridiques sont valides'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1186,13 +1554,14 @@ Future<void> _initiateSignatureProcess(Land land) async {
       if (!_legalVerifications.values.every((v) => v)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Veuillez compléter toutes les vérifications juridiques'),
+            content:
+                Text('Veuillez compléter toutes les vérifications juridiques'),
             backgroundColor: Colors.red,
           ),
         );
         return;
       }
-      
+
       // Si DocuSign est prêt mais que le document n'a pas été envoyé pour signature,
       // demander à l'utilisateur s'il souhaite continuer sans signature
       if (hasDocuments && _isDocuSignReady && _envelopeId == null) {
@@ -1201,9 +1570,8 @@ Future<void> _initiateSignatureProcess(Land land) async {
           builder: (context) => AlertDialog(
             title: const Text('Signature électronique'),
             content: const Text(
-              'Les documents n\'ont pas encore été envoyés pour signature électronique. '
-              'Voulez-vous continuer la validation sans signature électronique?'
-            ),
+                'Les documents n\'ont pas encore été envoyés pour signature électronique. '
+                'Voulez-vous continuer la validation sans signature électronique?'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -1232,10 +1600,10 @@ Future<void> _initiateSignatureProcess(Land land) async {
 
   void _completeSubmission(BuildContext context, Land land) {
     // Inclure l'information sur la validation des documents et la signature dans les commentaires
-    final signatureInfo = _envelopeId != null 
-        ? "- Signature électronique: OUI (ID: $_envelopeId, Statut: $_signatureStatus)" 
+    final signatureInfo = _envelopeId != null
+        ? "- Signature électronique: OUI (ID: $_envelopeId, Statut: $_signatureStatus)"
         : "- Signature électronique: NON";
-        
+
     final commentsWithDetails = '''
 ${_commentsController.text}
 

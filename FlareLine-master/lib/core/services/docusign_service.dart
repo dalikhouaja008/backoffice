@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:async';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:flareline/core/config/api_config.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
@@ -8,22 +9,50 @@ import 'package:flareline/domain/entities/land_entity.dart';
 class DocuSignService {
   String? accessToken;
 
-  // Méthode pour initialiser l'authentification OAuth
   void initiateAuthentication() {
-    final authUrl =
-        Uri.parse('${ApiConfig.docuSignAuthUrl}/oauth/auth').replace(
-      queryParameters: {
-        'response_type': 'token', // Utiliser token au lieu de code
-        'scope': 'signature',
-        'client_id': ApiConfig.docuSignClientId,
-        'redirect_uri':
-            'https://localhost:8080', // Une URL locale que vous contrôlez
-        'prompt': 'login',
-      },
-    );
+    try {
+      final redirectUri = Uri.encodeComponent(ApiConfig.docuSignRedirectUri);
 
-    // Ouvrir l'URL d'authentification
-    html.window.open(authUrl.toString(), 'DocuSign Authentication');
+      print("=== DÉBUT AUTHENTIFICATION DOCUSIGN ===");
+      print("Client ID: ${ApiConfig.docuSignClientId}");
+      print("URI de redirection (brut): ${ApiConfig.docuSignRedirectUri}");
+      print("URI de redirection (encodé): $redirectUri");
+
+      // Changement ici : utilisez response_type=code au lieu de response_type=token
+      final authUrl = '${ApiConfig.docuSignAuthUrl}/oauth/auth'
+          '?response_type=code'
+          '&scope=signature%20extended'
+          '&client_id=${ApiConfig.docuSignClientId}'
+          '&redirect_uri=$redirectUri'
+          '&prompt=consent';
+
+      print("URL d'authentification complète: $authUrl");
+
+      // Ouvrir la page dans une nouvelle fenêtre
+      html.WindowBase? authWindow = html.window.open(authUrl, 'DocuSignAuth',
+          'width=800,height=600,resizable=yes,scrollbars=yes,status=yes');
+
+      if (authWindow == null || authWindow.closed == true) {
+        print(
+            "ERREUR: La fenêtre d'authentification a été bloquée ou n'a pas pu être ouverte");
+        html.window.location.href = authUrl;
+      } else {
+        print("Fenêtre d'authentification ouverte avec succès");
+      }
+    } catch (e) {
+      print("ERREUR lors de l'authentification DocuSign: $e");
+    }
+  }
+
+  void clearToken() {
+    accessToken = null;
+    try {
+      html.window.localStorage.remove('docusign_token');
+      html.window.localStorage.remove('docusign_token_expiry');
+      print("Token DocuSign effacé");
+    } catch (e) {
+      print("Erreur lors de l'effacement du token: $e");
+    }
   }
 
   // Méthode pour traiter le code d'autorisation après redirection
@@ -178,51 +207,6 @@ class DocuSignService {
     }
   }
 
-  // Création d'une URL d'envoi pour signature en ligne
-  Future<String?> createEmbeddedSigningUrl(
-      String envelopeId, String recipientId, String returnUrl) async {
-    if (accessToken == null) {
-      final hasToken = checkExistingAuth();
-      if (!hasToken) return null;
-    }
-
-    try {
-      final viewUrl =
-          '${ApiConfig.docuSignBaseUrl}/v2.1/accounts/${ApiConfig.docuSignAccountId}/envelopes/$envelopeId/views/recipient';
-
-      final viewRequest = {
-        'authenticationMethod': 'None',
-        'email':
-            'signer@example.com', // L'email doit correspondre à un signataire existant
-        'returnUrl': returnUrl, // URL où rediriger après la signature
-        'userName':
-            'Signataire', // Le nom doit correspondre à un signataire existant
-        'clientUserId': recipientId // Identifiant pour la signature embarquée
-      };
-
-      final response = await http
-          .post(Uri.parse(viewUrl),
-              headers: {
-                'Authorization': 'Bearer $accessToken',
-                'Content-Type': 'application/json'
-              },
-              body: json.encode(viewRequest))
-          .timeout(Duration(seconds: ApiConfig.apiTimeout));
-
-      if (response.statusCode == 201) {
-        final responseData = json.decode(response.body);
-        return responseData['url']; // URL pour la signature embarquée
-      } else {
-        print(
-            'Erreur lors de la création de l\'URL de signature: ${response.statusCode} - ${response.body}');
-        return null;
-      }
-    } catch (e) {
-      print('Exception lors de la création de l\'URL de signature: $e');
-      return null;
-    }
-  }
-
   // Ajout d'un document à une enveloppe existante
   Future<bool> addDocumentToEnvelope(String envelopeId, String documentBase64,
       String documentName, String documentId) async {
@@ -301,6 +285,41 @@ class DocuSignService {
     }
   }
 
+  void setAccessToken(String token, {int? expiresIn}) {
+    try {
+      // Assigner le token à la variable du service
+      accessToken = token;
+      print(
+          "Token d'accès défini: ${token.substring(0, min(10, token.length))}...");
+
+      // Stocker également dans localStorage pour la persistance
+      html.window.localStorage['docusign_token'] = token;
+
+      // Gérer l'expiration
+      int expiryTime;
+      if (expiresIn != null) {
+        expiryTime = DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000);
+      } else {
+        // Valeur par défaut: 1 heure
+        expiryTime = DateTime.now().millisecondsSinceEpoch + (3600 * 1000);
+
+        // Essayer de lire l'expiration existante
+        final existingExpiry =
+            html.window.localStorage['docusign_token_expiry'];
+        if (existingExpiry != null) {
+          expiryTime = int.tryParse(existingExpiry) ?? expiryTime;
+        }
+      }
+
+      html.window.localStorage['docusign_token_expiry'] = expiryTime.toString();
+
+      print(
+          "Token stocké avec expiration: ${DateTime.fromMillisecondsSinceEpoch(expiryTime)}");
+    } catch (e) {
+      print("Erreur lors de la définition du token: $e");
+    }
+  }
+
   // Récupération de la liste des enveloppes
   Future<List<Map<String, dynamic>>?> listEnvelopes(
       {String fromDate = '',
@@ -344,19 +363,16 @@ class DocuSignService {
     return accessToken != null || checkExistingAuth();
   }
 
-  Future<String?> createSignatureRequest({
+  Future<Map<String, dynamic>> createEnvelopeForEmbeddedSigning({
     required Land land,
     required String documentBase64,
     required String signerEmail,
     required String signerName,
-    String? secondarySignerEmail, // Paramètre optionnel
-    String? secondarySignerName, // Paramètre optionnel
   }) async {
     if (accessToken == null) {
       final hasToken = checkExistingAuth();
       if (!hasToken) {
-        print('Pas de token disponible');
-        return null;
+        return {'success': false, 'error': 'Non authentifié'};
       }
     }
 
@@ -373,12 +389,13 @@ class DocuSignService {
           }
         ],
         'recipients': {
-          'signers': <Map<String, dynamic>>[
+          'signers': [
             {
               'email': signerEmail,
               'name': signerName,
               'recipientId': '1',
               'routingOrder': '1',
+              'clientUserId': '1001', // Crucial pour la signature intégrée
               'tabs': {
                 'signHereTabs': [
                   {
@@ -400,38 +417,8 @@ class DocuSignService {
             }
           ]
         },
-        'status': 'sent'
+        'status': 'created' // Important: "created" et non "sent"
       };
-
-      // Ajouter un second signataire UNIQUEMENT si les deux paramètres secondaires sont fournis
-      if (secondarySignerEmail != null && secondarySignerName != null) {
-        (envelopeDefinition['recipients']['signers']
-                as List<Map<String, dynamic>>)
-            .add({
-          'email': secondarySignerEmail,
-          'name': secondarySignerName,
-          'recipientId': '2',
-          'routingOrder': '2',
-          'tabs': {
-            'signHereTabs': [
-              {
-                'documentId': '1',
-                'pageNumber': '1',
-                'xPosition': '400',
-                'yPosition': '400'
-              }
-            ],
-            'dateSignedTabs': [
-              {
-                'documentId': '1',
-                'pageNumber': '1',
-                'xPosition': '400',
-                'yPosition': '450'
-              }
-            ]
-          }
-        });
-      }
 
       // Envoi de la requête à l'API DocuSign
       final envelopeUrl =
@@ -449,16 +436,78 @@ class DocuSignService {
       if (response.statusCode == 201) {
         final responseData = json.decode(response.body);
         final envelopeId = responseData['envelopeId'];
-        print('Enveloppe créée avec succès. ID: $envelopeId');
-        return envelopeId;
+        print(
+            'Enveloppe créée pour signature intégrée avec succès. ID: $envelopeId');
+        return {
+          'success': true,
+          'envelopeId': envelopeId,
+        };
       } else {
         print(
             'Erreur lors de la création de l\'enveloppe: ${response.statusCode} - ${response.body}');
-        return null;
+        return {
+          'success': false,
+          'error': 'Erreur lors de la création de l\'enveloppe'
+        };
       }
     } catch (e) {
       print('Exception lors de la création de l\'enveloppe: $e');
-      return null;
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+// Modifier la méthode createEmbeddedSigningUrl pour qu'elle soit plus facile à utiliser
+  Future<Map<String, dynamic>> createEmbeddedSigningUrl({
+    required String envelopeId,
+    required String signerEmail,
+    required String signerName,
+  }) async {
+    if (accessToken == null) {
+      final hasToken = checkExistingAuth();
+      if (!hasToken) return {'success': false, 'error': 'Non authentifié'};
+    }
+
+    try {
+      final viewUrl =
+          '${ApiConfig.docuSignBaseUrl}/v2.1/accounts/${ApiConfig.docuSignAccountId}/envelopes/$envelopeId/views/recipient';
+
+      final viewRequest = {
+        'authenticationMethod': 'None',
+        'email':
+            signerEmail, // L'email doit correspondre à un signataire existant
+        'returnUrl': ApiConfig
+            .docuSignSigningReturnUrl, // URL où rediriger après la signature
+        'userName':
+            signerName, // Le nom doit correspondre à un signataire existant
+        'clientUserId':
+            '1001' // Identifiant pour la signature intégrée (doit correspondre à celui de l'enveloppe)
+      };
+
+      final response = await http
+          .post(Uri.parse(viewUrl),
+              headers: {
+                'Authorization': 'Bearer $accessToken',
+                'Content-Type': 'application/json'
+              },
+              body: json.encode(viewRequest))
+          .timeout(Duration(seconds: ApiConfig.apiTimeout));
+
+      if (response.statusCode == 201) {
+        final responseData = json.decode(response.body);
+        final signingUrl =
+            responseData['url']; // URL pour la signature intégrée
+        return {'success': true, 'signingUrl': signingUrl};
+      } else {
+        print(
+            'Erreur lors de la création de l\'URL de signature: ${response.statusCode} - ${response.body}');
+        return {
+          'success': false,
+          'error': 'Erreur lors de la création de l\'URL de signature'
+        };
+      }
+    } catch (e) {
+      print('Exception lors de la création de l\'URL de signature: $e');
+      return {'success': false, 'error': e.toString()};
     }
   }
 }
