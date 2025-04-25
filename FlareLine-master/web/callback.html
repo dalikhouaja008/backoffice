@@ -31,44 +31,39 @@
       return params;
     }
 
-    // Échange le code contre un token
-    async function exchangeCodeForToken(code) {
+    // Échange le code via le serveur proxy
+    async function exchangeCodeViaProxy(code, state) {
       try {
-        log("Échange du code contre un token...");
+        log("Échange du code via proxy local...");
         
-        // Préparer les données pour la requête
-        const clientId = "d956403b-d435-4cca-9763-53489f61dd6c";
-        const clientSecret = "35df48ab-cf3e-4803-9da0-2b38435467e2"; // Normalement, vous ne devriez pas exposer le secret client côté client
-        const redirectUri = "http://localhost:8080/callback.html";
-        
-        // Construire les données du formulaire
-        const formData = new URLSearchParams();
-        formData.append('grant_type', 'authorization_code');
-        formData.append('code', code);
-        formData.append('client_id', clientId);
-        formData.append('client_secret', clientSecret);
-        formData.append('redirect_uri', redirectUri);
-        
-        // Effectuer la requête
-        const response = await fetch('https://account-d.docusign.com/oauth/token', {
+        const response = await fetch('http://localhost:3001/exchange-code', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/json'
           },
-          body: formData
+          body: JSON.stringify({ 
+            code: code,
+            state: state // Inclure l'état pour récupérer le code_verifier correspondant
+          })
         });
         
         if (!response.ok) {
-          const errorText = await response.text();
-          log("Erreur lors de l'échange: " + response.status + " - " + errorText, true);
+          let errorText;
+          try {
+            const errorData = await response.json();
+            errorText = JSON.stringify(errorData);
+          } catch (e) {
+            errorText = await response.text();
+          }
+          log("Erreur du proxy: " + response.status + " - " + errorText, true);
           return null;
         }
         
         const data = await response.json();
-        log("Token récupéré avec succès");
+        log("Token récupéré avec succès via proxy!");
         return data;
       } catch (e) {
-        log("Erreur lors de l'échange du code: " + e, true);
+        log("Erreur lors de l'appel au proxy: " + e, true);
         return null;
       }
     }
@@ -83,23 +78,33 @@
       if (params.code) {
         log("Code d'autorisation trouvé: " + params.code);
         
-        // Échanger le code contre un token
-        const tokenData = await exchangeCodeForToken(params.code);
+        // Récupérer l'état s'il existe
+        const state = params.state || '';
+        if (state) {
+          log("État trouvé: " + state);
+        } else {
+          log("Pas d'état trouvé dans l'URL", true);
+        }
+        
+        // Échanger le code contre un token via le proxy
+        const tokenData = await exchangeCodeViaProxy(params.code, state);
         
         if (tokenData && tokenData.access_token) {
           try {
             // Stocker le token dans localStorage
             window.localStorage.setItem('docusign_token', tokenData.access_token);
+            localStorage.setItem('docusign_token', tokenData.access_token);
             log("Token stocké dans localStorage");
             
             // Stocker l'expiration
             const expiresIn = tokenData.expires_in || 3600;
             const expiryTime = new Date().getTime() + (expiresIn * 1000);
             window.localStorage.setItem('docusign_token_expiry', expiryTime.toString());
+            localStorage.setItem('docusign_token_expiry', expiryTime.toString());
             log("Expiration stockée: " + new Date(expiryTime).toLocaleString());
             
             // Vérifier que le token est bien stocké
-            const storedToken = window.localStorage.getItem('docusign_token');
+            const storedToken = localStorage.getItem('docusign_token');
             if (storedToken) {
               log("Vérification du stockage: OK (token présent)");
               document.getElementById('status').innerText = 'Authentification réussie! Fermeture...';
@@ -183,7 +188,7 @@
   <h2>DocuSign Authentication</h2>
   <div id="status">Traitement de l'authentification...</div>
   <button onclick="window.close()">Fermer cette fenêtre</button>
-  <button onclick="window.localStorage.removeItem('docusign_token'); window.localStorage.removeItem('docusign_token_expiry'); alert('Tokens supprimés!');">Effacer les tokens</button>
+  <button onclick="localStorage.removeItem('docusign_token'); localStorage.removeItem('docusign_token_expiry'); window.localStorage.removeItem('docusign_token'); window.localStorage.removeItem('docusign_token_expiry'); alert('Tokens supprimés!');">Effacer les tokens</button>
   
   <div class="log-title">Logs de débogage:</div>
   <div id="logs"><!-- Les logs seront ajoutés ici --></div>

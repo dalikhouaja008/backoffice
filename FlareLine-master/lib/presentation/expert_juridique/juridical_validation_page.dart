@@ -1,18 +1,19 @@
+import 'package:flareline/presentation/bloc/docusign/docusign_bloc.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flareline/core/injection/injection.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:flareline/presentation/expert_juridique/widgets/juridical_validation_form.dart';
-import 'package:flareline/presentation/pages/layout.dart'; 
+import 'package:flareline/presentation/pages/layout.dart';
 
 class JuridicalValidationPage extends LayoutWidget {
   final Land land;
 
   const JuridicalValidationPage({
-    Key? key,
+    super.key,
     required this.land,
-  }) : super(key: key);
+  });
 
   @override
   String breakTabTitle(BuildContext context) {
@@ -21,8 +22,15 @@ class JuridicalValidationPage extends LayoutWidget {
 
   @override
   Widget contentDesktopWidget(BuildContext context) {
-    return BlocProvider<ExpertJuridiqueBloc>(
-      create: (context) => getIt<ExpertJuridiqueBloc>(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<ExpertJuridiqueBloc>(
+          create: (context) => getIt<ExpertJuridiqueBloc>(),
+        ),
+        BlocProvider<DocuSignBloc>(
+          create: (context) => getIt<DocuSignBloc>(),
+        ),
+      ],
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -53,7 +61,19 @@ class JuridicalValidationPage extends LayoutWidget {
                   ),
             ),
             const Divider(height: 24),
-            JuridicalValidationForm(land: land),
+            // Modification critique ici : Expanded pour donner une taille définie
+            Expanded(
+              child: SingleChildScrollView(
+                // Donnez une largeur maximale pour éviter les débordements horizontaux
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width -
+                        32, // Tenir compte du padding
+                  ),
+                  child: JuridicalValidationForm(land: land),
+                ),
+              ),
+            ),
           ],
         ),
       ),
