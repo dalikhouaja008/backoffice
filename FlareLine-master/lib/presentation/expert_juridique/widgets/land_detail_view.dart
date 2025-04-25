@@ -3,7 +3,6 @@ import 'package:flareline/core/theme/global_colors.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:flareline/domain/enums/validation_enums.dart';
 import 'package:flareline/presentation/geometre/widgets/land_images_gallery.dart';
-import 'package:flareline_uikit/components/buttons/button_form.dart';
 
 class LandDetailView extends StatelessWidget {
   final Land land;

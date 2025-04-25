@@ -2,12 +2,35 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:async';
 import 'dart:math';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:flareline/core/config/api_config.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
 
 class DocuSignService {
   String? accessToken;
+
+  // Génération d'un code verifier aléatoire
+  String _generateCodeVerifier() {
+    final random = Random.secure();
+    final values = List<int>.generate(48, (_) => random.nextInt(256));
+    return base64Url
+        .encode(values)
+        .replaceAll('=', '')
+        .replaceAll('+', '-')
+        .replaceAll('/', '_');
+  }
+
+  // Génération d'un code challenge à partir du code verifier
+  String _generateCodeChallenge(String codeVerifier) {
+    final bytes = utf8.encode(codeVerifier);
+    final digest = sha256.convert(bytes);
+    return base64Url
+        .encode(digest.bytes)
+        .replaceAll('=', '')
+        .replaceAll('+', '-')
+        .replaceAll('/', '_');
+  }
 
   void initiateAuthentication() {
     try {
@@ -18,7 +41,7 @@ class DocuSignService {
       print("URI de redirection (brut): ${ApiConfig.docuSignRedirectUri}");
       print("URI de redirection (encodé): $redirectUri");
 
-      // Changement ici : utilisez response_type=code au lieu de response_type=token
+      // URL d'authentification simple sans PKCE (le proxy gèrera le PKCE)
       final authUrl = '${ApiConfig.docuSignAuthUrl}/oauth/auth'
           '?response_type=code'
           '&scope=signature%20extended'
@@ -33,8 +56,7 @@ class DocuSignService {
           'width=800,height=600,resizable=yes,scrollbars=yes,status=yes');
 
       if (authWindow == null || authWindow.closed == true) {
-        print(
-            "ERREUR: La fenêtre d'authentification a été bloquée ou n'a pas pu être ouverte");
+        print("ERREUR: La fenêtre d'authentification a été bloquée");
         html.window.location.href = authUrl;
       } else {
         print("Fenêtre d'authentification ouverte avec succès");
@@ -49,6 +71,8 @@ class DocuSignService {
     try {
       html.window.localStorage.remove('docusign_token');
       html.window.localStorage.remove('docusign_token_expiry');
+      html.window.localStorage.remove(
+          'docusign_code_verifier'); // Nettoyer également le code verifier
       print("Token DocuSign effacé");
     } catch (e) {
       print("Erreur lors de l'effacement du token: $e");
@@ -58,6 +82,15 @@ class DocuSignService {
   // Méthode pour traiter le code d'autorisation après redirection
   Future<bool> processAuthCode(String code) async {
     try {
+      // Récupérer le code_verifier stocké
+      final codeVerifier = html.window.localStorage['docusign_code_verifier'];
+      if (codeVerifier == null) {
+        print("ERREUR: Code verifier non trouvé dans localStorage");
+        return false;
+      }
+
+      print("Code Verifier récupéré: ${codeVerifier.substring(0, 10)}...");
+
       final tokenResponse = await http.post(
         Uri.parse(ApiConfig.docuSignTokenUrl),
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -66,7 +99,8 @@ class DocuSignService {
           'code': code,
           'client_id': ApiConfig.docuSignClientId,
           'client_secret': ApiConfig.docuSignClientSecret,
-          'redirect_uri': ApiConfig.docuSignRedirectUri
+          'redirect_uri': ApiConfig.docuSignRedirectUri,
+          'code_verifier': codeVerifier // Ajout du code_verifier pour PKCE
         },
       );
 
@@ -83,7 +117,10 @@ class DocuSignService {
         html.window.localStorage['docusign_token_expiry'] =
             expiryTime.toString();
 
-        print('Authentification DocuSign réussie');
+        // Nettoyer le code_verifier une fois utilisé
+        html.window.localStorage.remove('docusign_code_verifier');
+
+        print('Authentification DocuSign réussie avec PKCE');
         return true;
       } else {
         print('Erreur d\'authentification: ${tokenResponse.body}');
@@ -95,6 +132,7 @@ class DocuSignService {
     }
   }
 
+  // Le reste de la classe reste inchangé
   // Vérifier si nous avons un token dans le stockage local et s'il est valide
   bool checkExistingAuth() {
     final storedToken = html.window.localStorage['docusign_token'];
@@ -127,6 +165,8 @@ class DocuSignService {
     accessToken = null;
     html.window.localStorage.remove('docusign_token');
     html.window.localStorage.remove('docusign_token_expiry');
+    html.window.localStorage.remove(
+        'docusign_code_verifier'); // Nettoyer également le code verifier
   }
 
   // Vérification du statut d'une enveloppe

@@ -124,8 +124,8 @@ Future<void> _onValidateLand(
 
     final validation = await validateLand.call(
       landId: event.landId,
-      isValidated: event.isValid, // Utiliser isValid de l'événement
-      comments: event.comment, // Utiliser comment de l'événement
+      isValidated: event.isValid, 
+      comments: event.comment, 
     );
 
     logger.log(

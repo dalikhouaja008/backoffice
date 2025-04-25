@@ -5,14 +5,25 @@ import 'package:flareline/core/services/openroute_service.dart';
 import 'package:flareline/core/services/secure_storage.dart';
 import 'package:flareline/core/services/session_service.dart';
 import 'package:flareline/data/datasources/auth_remote_data_source.dart';
+import 'package:flareline/data/datasources/docusign_remote_data_source.dart';
 import 'package:flareline/data/datasources/expert_juridique_remote_data_source.dart';
 import 'package:flareline/data/repositories/auth_repo_impl.dart';
+import 'package:flareline/data/repositories/docusign_repository_impl.dart';
 import 'package:flareline/data/repositories/expert_juridique_repository_impl.dart';
 import 'package:flareline/domain/repositories/auth_repo.dart';
+import 'package:flareline/domain/repositories/docusign_repository.dart';
 import 'package:flareline/domain/repositories/expert_juridique_repository.dart';
+import 'package:flareline/domain/use_cases/docusign/check_authentication_use_case.dart';
+import 'package:flareline/domain/use_cases/docusign/check_envelope_status_use_case.dart';
+import 'package:flareline/domain/use_cases/docusign/create_envelope_use_case.dart';
+import 'package:flareline/domain/use_cases/docusign/download_signed_document_use_case.dart';
+import 'package:flareline/domain/use_cases/docusign/get_signature_history_use_case.dart';
+import 'package:flareline/domain/use_cases/docusign/get_signing_url_use_case.dart';
+import 'package:flareline/domain/use_cases/docusign/initiate_authentication_use_case.dart';
 import 'package:flareline/domain/use_cases/expert_juridique/get_pending_lands.dart';
 import 'package:flareline/domain/use_cases/expert_juridique/validate_land.dart';
 import 'package:flareline/domain/use_cases/login_use_case.dart';
+import 'package:flareline/presentation/bloc/docusign/docusign_bloc.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_bloc.dart';
 import 'package:flareline/presentation/bloc/login/login_bloc.dart';
@@ -48,18 +59,19 @@ void setupInjection() {
 
   // Configuration de l'URL de l'API en fonction de la plateforme
   final String apiBaseUrl = _getApiBaseUrl();
-  getIt.registerLazySingleton<String>(() => apiBaseUrl, instanceName: 'apiBaseUrl');
-  
+  getIt.registerLazySingleton<String>(() => apiBaseUrl,
+      instanceName: 'apiBaseUrl');
+
   getIt<Logger>().i('API Base URL configurée: $apiBaseUrl ');
 
   // Configuration de Dio avec AuthInterceptor pour LandService
   getIt.registerLazySingleton(() {
     final dio = Dio();
 
-    // Configuration de base avec l'URL 
+    // Configuration de base avec l'URL
     dio.options.baseUrl = apiBaseUrl;
-    dio.options.connectTimeout = const Duration(seconds: 15); 
-    dio.options.receiveTimeout = const Duration(seconds: 15); 
+    dio.options.connectTimeout = const Duration(seconds: 15);
+    dio.options.receiveTimeout = const Duration(seconds: 15);
 
     // Ajout des intercepteurs
     dio.interceptors.add(
@@ -111,17 +123,25 @@ void setupInjection() {
     () => GeometreRemoteDataSource(
       dio: getIt<Dio>(),
       logger: getIt<Logger>(),
-      baseUrl: apiBaseUrl, 
+      baseUrl: apiBaseUrl,
     ),
   );
 
   getIt.registerLazySingleton<ExpertJuridiqueRemoteDataSource>(
-  () => ExpertJuridiqueRemoteDataSource(
-    dio: getIt<Dio>(),
-    logger: getIt<Logger>(),
-    baseUrl: apiBaseUrl,
-  ),
-);
+    () => ExpertJuridiqueRemoteDataSource(
+      dio: getIt<Dio>(),
+      logger: getIt<Logger>(),
+      baseUrl: apiBaseUrl,
+    ),
+  );
+
+  getIt.registerLazySingleton<DocuSignRemoteDataSource>(
+      () => DocuSignRemoteDataSource(
+            dio: getIt<Dio>(),
+            logger: getIt<Logger>(),
+            secureStorage: getIt<SecureStorageService>(),
+            baseUrl: apiBaseUrl,
+          ));
 
   // Repositories
   getIt.registerLazySingleton<GeometreRepository>(
@@ -136,10 +156,73 @@ void setupInjection() {
   );
 
   getIt.registerLazySingleton<ExpertJuridiqueRepository>(
-  () => ExpertJuridiqueRepositoryImpl(
-    remoteDataSource: getIt<ExpertJuridiqueRemoteDataSource>(),
-  ),
-);
+    () => ExpertJuridiqueRepositoryImpl(
+      remoteDataSource: getIt<ExpertJuridiqueRemoteDataSource>(),
+    ),
+  );
+// Repository pour DocuSign
+  getIt.registerLazySingleton<DocuSignRepository>(
+    () => DocuSignRepositoryImpl(
+      remoteDataSource: getIt<DocuSignRemoteDataSource>(),
+    ),
+  );
+
+// Use Cases pour DocuSign
+  getIt.registerLazySingleton<CheckDocuSignAuthenticationUseCase>(
+    () => CheckDocuSignAuthenticationUseCase(
+      repository: getIt<DocuSignRepository>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<InitiateDocuSignAuthenticationUseCase>(
+    () => InitiateDocuSignAuthenticationUseCase(
+      repository: getIt<DocuSignRepository>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<CreateEnvelopeUseCase>(
+    () => CreateEnvelopeUseCase(
+      repository: getIt<DocuSignRepository>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetSigningUrlUseCase>(
+    () => GetSigningUrlUseCase(
+      repository: getIt<DocuSignRepository>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<CheckEnvelopeStatusUseCase>(
+    () => CheckEnvelopeStatusUseCase(
+      repository: getIt<DocuSignRepository>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<DownloadSignedDocumentUseCase>(
+    () => DownloadSignedDocumentUseCase(
+      repository: getIt<DocuSignRepository>(),
+    ),
+  );
+
+  getIt.registerLazySingleton<GetSignatureHistoryUseCase>(
+    () => GetSignatureHistoryUseCase(
+      repository: getIt<DocuSignRepository>(),
+    ),
+  );
+
+// Bloc pour DocuSign
+  getIt.registerFactory<DocuSignBloc>(
+    () => DocuSignBloc(
+      checkAuthentication: getIt<CheckDocuSignAuthenticationUseCase>(),
+      initiateAuthentication: getIt<InitiateDocuSignAuthenticationUseCase>(),
+      createEnvelope: getIt<CreateEnvelopeUseCase>(),
+      getSigningUrl: getIt<GetSigningUrlUseCase>(),
+      checkEnvelopeStatus: getIt<CheckEnvelopeStatusUseCase>(),
+      downloadSignedDocument: getIt<DownloadSignedDocumentUseCase>(),
+      getSignatureHistory: getIt<GetSignatureHistoryUseCase>(),
+      logger: getIt<Logger>(),
+    ),
+  );
 
   // Use cases
   getIt.registerLazySingleton(
@@ -155,16 +238,16 @@ void setupInjection() {
   );
 
   getIt.registerLazySingleton<GetPendingLandsExpertJuridique>(
-  () => GetPendingLandsExpertJuridique(
-    repository: getIt<ExpertJuridiqueRepository>(),
-  ),
-);
+    () => GetPendingLandsExpertJuridique(
+      repository: getIt<ExpertJuridiqueRepository>(),
+    ),
+  );
 
-getIt.registerLazySingleton<ValidateLandUseCaseExpertJuridique>(
-  () => ValidateLandUseCaseExpertJuridique(
-    repository: getIt<ExpertJuridiqueRepository>(),
-  ),
-);
+  getIt.registerLazySingleton<ValidateLandUseCaseExpertJuridique>(
+    () => ValidateLandUseCaseExpertJuridique(
+      repository: getIt<ExpertJuridiqueRepository>(),
+    ),
+  );
 
   // Blocs
   getIt.registerFactory(
@@ -184,12 +267,12 @@ getIt.registerLazySingleton<ValidateLandUseCaseExpertJuridique>(
   );
 
   getIt.registerFactory<ExpertJuridiqueBloc>(
-  () => ExpertJuridiqueBloc(
-    getPendingLands: getIt<GetPendingLandsExpertJuridique>(),
-    validateLand: getIt<ValidateLandUseCaseExpertJuridique>(),
-    logger: getIt<Logger>(),
-  ),
-);
+    () => ExpertJuridiqueBloc(
+      getPendingLands: getIt<GetPendingLandsExpertJuridique>(),
+      validateLand: getIt<ValidateLandUseCaseExpertJuridique>(),
+      logger: getIt<Logger>(),
+    ),
+  );
 
   // Log initialization
   getIt<Logger>().log(
@@ -201,7 +284,7 @@ getIt.registerLazySingleton<ValidateLandUseCaseExpertJuridique>(
 // Fonction pour déterminer l'URL de l'API en fonction de la plateforme
 String _getApiBaseUrl() {
   const String postmanWorkingUrl = 'http://localhost:5000';
-  
+
   if (kIsWeb) {
     // Pour le web, on utilise l'URL complète avec le protocole pour éviter les problèmes CORS
     return postmanWorkingUrl;
