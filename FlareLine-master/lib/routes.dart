@@ -1,5 +1,6 @@
 import 'package:flareline/deferred_widget.dart';
 import 'package:flareline/presentation/expert_juridique/ExpertJuridiquePage.dart' as expert_juridique;
+import 'package:flareline/presentation/expert_juridique/juridical_validation_page.dart';
 import 'package:flareline/presentation/geometre/GeometrePage.dart' as geometre;
 import 'package:flareline/presentation/pages/modal/modal_page.dart' deferred as modal;
 import 'package:flareline/presentation/pages/table/contacts_page.dart' deferred as contacts;

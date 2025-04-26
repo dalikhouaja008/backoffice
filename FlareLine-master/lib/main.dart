@@ -4,6 +4,7 @@ import 'package:flareline_uikit/service/localization_provider.dart';
 import 'package:flareline/routes.dart';
 import 'package:flareline_uikit/service/theme_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart'; 
 import 'package:flareline/flutter_gen/app_localizations.dart';
 import 'package:get/get.dart';
@@ -13,6 +14,7 @@ import 'package:window_manager/window_manager.dart';
 
 
 void main() async {
+  //debugPaintSizeEnabled = true;
   // Assurez-vous que Flutter est initialisé
   WidgetsFlutterBinding.ensureInitialized();
   

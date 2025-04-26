@@ -20,7 +20,6 @@ class CommentsField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Titre de la section avec bouton de génération
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
