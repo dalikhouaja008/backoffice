@@ -63,4 +63,16 @@ class DownloadDocumentEvent extends DocuSignEvent {
   List<Object?> get props => [envelopeId];
 }
 
+class OpenSigningUrlEvent extends DocuSignEvent {
+  final String envelopeId;
+  final String signerEmail;
+  final String signerName;
+  
+  OpenSigningUrlEvent({
+    required this.envelopeId,
+    required this.signerEmail,
+    required this.signerName,
+  });
+}
+
 class GetSignatureHistoryEvent extends DocuSignEvent {}

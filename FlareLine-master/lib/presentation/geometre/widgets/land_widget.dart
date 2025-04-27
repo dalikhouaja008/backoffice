@@ -72,7 +72,7 @@ class LandImage extends StatelessWidget {
       color: Colors.grey[300],
       child: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.error_outline,

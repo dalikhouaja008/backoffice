@@ -205,4 +205,4 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
       emit(SignatureHistoryError('Erreur lors de la récupération de l\'historique: $e'));
     }
   }
-}
+ }

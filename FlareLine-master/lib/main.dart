@@ -1,9 +1,11 @@
 import 'package:flareline/core/injection/injection.dart';
+import 'package:flareline/core/services/secure_storage.dart';
 import 'package:flareline/core/theme/global_theme.dart';
 import 'package:flareline_uikit/service/localization_provider.dart';
 import 'package:flareline/routes.dart';
 import 'package:flareline_uikit/service/theme_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart'; 
 import 'package:flareline/flutter_gen/app_localizations.dart';
 import 'package:get/get.dart';
@@ -13,6 +15,7 @@ import 'package:window_manager/window_manager.dart';
 
 
 void main() async {
+  //debugPaintSizeEnabled = true;
   // Assurez-vous que Flutter est initialisé
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -21,6 +24,10 @@ void main() async {
   
   // Initialiser le stockage
   await GetStorage.init();
+
+    final secureStorage = getIt<SecureStorageService>();
+      await secureStorage.deleteTokens();
+  print(' ✅ TEST: Tokens supprimés avec succès');
 
   // Configuration pour les appareils mobiles
   if (GetPlatform.isMobile) {

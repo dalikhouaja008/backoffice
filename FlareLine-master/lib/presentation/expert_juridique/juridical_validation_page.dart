@@ -5,15 +5,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flareline/core/injection/injection.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:flareline/presentation/expert_juridique/widgets/juridical_validation_form.dart';
-import 'package:flareline/presentation/pages/layout.dart';
+import 'package:flareline/presentation/pages/layout.dart'; 
 
 class JuridicalValidationPage extends LayoutWidget {
   final Land land;
 
   const JuridicalValidationPage({
-    super.key,
+    Key? key,
     required this.land,
-  });
+  }) : super(key: key);
 
   @override
   String breakTabTitle(BuildContext context) {
@@ -61,18 +61,11 @@ class JuridicalValidationPage extends LayoutWidget {
                   ),
             ),
             const Divider(height: 24),
-            // Modification critique ici : Expanded pour donner une taille définie
-            Expanded(
-              child: SingleChildScrollView(
-                // Donnez une largeur maximale pour éviter les débordements horizontaux
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width -
-                        32, // Tenir compte du padding
-                  ),
-                  child: JuridicalValidationForm(land: land),
-                ),
-              ),
+            
+            // Contenu principal
+            // Utiliser Builder ici est crucial pour avoir accès au bon contexte
+            Builder(
+              builder: (context) => JuridicalValidationForm(land: land),
             ),
           ],
         ),
