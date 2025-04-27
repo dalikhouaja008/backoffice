@@ -1,3 +1,4 @@
+import 'package:flareline/presentation/bloc/docusign/docusign_bloc.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,8 +22,15 @@ class JuridicalValidationPage extends LayoutWidget {
 
   @override
   Widget contentDesktopWidget(BuildContext context) {
-    return BlocProvider<ExpertJuridiqueBloc>(
-      create: (context) => getIt<ExpertJuridiqueBloc>(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<ExpertJuridiqueBloc>(
+          create: (context) => getIt<ExpertJuridiqueBloc>(),
+        ),
+        BlocProvider<DocuSignBloc>(
+          create: (context) => getIt<DocuSignBloc>(),
+        ),
+      ],
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -54,9 +62,11 @@ class JuridicalValidationPage extends LayoutWidget {
             ),
             const Divider(height: 24),
             
-            // Contenu principal - SANS Expanded pour éviter l'erreur
-            // Autoinspection JuridicalValidationForm pour ne pas utiliser d'Expanded
-            JuridicalValidationForm(land: land),
+            // Contenu principal
+            // Utiliser Builder ici est crucial pour avoir accès au bon contexte
+            Builder(
+              builder: (context) => JuridicalValidationForm(land: land),
+            ),
           ],
         ),
       ),

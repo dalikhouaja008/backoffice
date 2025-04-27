@@ -1,4 +1,7 @@
 import 'package:flareline/deferred_widget.dart';
+import 'dart:html' as html;
+import 'package:flareline/presentation/DocuSign/docusign_auth_handler.dart';
+import 'package:flareline/presentation/DocuSign/docusign_error_handler.dart';
 import 'package:flareline/presentation/expert_juridique/ExpertJuridiquePage.dart' as expert_juridique;
 import 'package:flareline/presentation/expert_juridique/juridical_validation_page.dart';
 import 'package:flareline/presentation/geometre/GeometrePage.dart' as geometre;
@@ -62,11 +65,13 @@ final List<Map<String, Object>> MAIN_PAGES = [
     'routerPath': '/expert_juridique',
     'widget': expert_juridique.ExpertJuridiquePage(),
   },
+
 ];
 
 class RouteConfiguration {
+  // Utilisez un debugLabel unique
   static final GlobalKey<NavigatorState> navigatorKey =
-      GlobalKey<NavigatorState>(debugLabel: 'Rex');
+      GlobalKey<NavigatorState>(debugLabel: 'MainNavigator_2025-04-27');
 
   static BuildContext? get navigatorContext =>
       navigatorKey.currentState?.context;
@@ -75,23 +80,42 @@ class RouteConfiguration {
     RouteSettings settings,
   ) {
     String path = settings.name!;
+    
+    // IMPORTANT: Traiter les routes DocuSign séparément
+    if (path == '/docusign-auth') {
+      // Créer une nouvelle instance à chaque fois SANS RÉUTILISER DE CLÉ
+      return NoAnimationMaterialPageRoute<void>(
+        builder: (context) => DocuSignAuthHandler(key: UniqueKey()),
+        settings: settings,
+      );
+    }
+    
+    if (path == '/docusign-auth-error') {
+      // Créer une nouvelle instance à chaque fois SANS RÉUTILISER DE CLÉ
+      return NoAnimationMaterialPageRoute<void>(
+        builder: (context) => DocuSignErrorHandler(key: UniqueKey()),
+        settings: settings,
+      );
+    }
 
-    dynamic map =
-        MAIN_PAGES.firstWhere((element) => element['routerPath'] == path);
+    // Pour les autres routes, utiliser la méthode habituelle
+    try {
+      final map = MAIN_PAGES.firstWhere((element) => element['routerPath'] == path);
+      final Widget targetPage = map['widget'] as Widget;
 
-    if (map == null) {
+      builder(context, match) {
+        return targetPage;
+      }
+
+      return NoAnimationMaterialPageRoute<void>(
+        builder: (context) => builder(context, null),
+        settings: settings,
+      );
+    } catch (e) {
+      // Route non trouvée
+      print('Route non trouvée: $path');
       return null;
     }
-    Widget targetPage = map['widget'];
-
-    builder(context, match) {
-      return targetPage;
-    }
-
-    return NoAnimationMaterialPageRoute<void>(
-      builder: (context) => builder(context, null),
-      settings: settings,
-    );
   }
 }
 
@@ -110,4 +134,10 @@ class NoAnimationMaterialPageRoute<T> extends MaterialPageRoute<T> {
   ) {
     return child;
   }
+}
+
+// Ajout d'une fonction utilitaire pour la navigation DocuSign sans utiliser Navigator
+// (utilisez cette fonction dans vos pages DocuSign au lieu de Navigator)
+void navigateToPath(String path) {
+  html.window.location.replace('/#$path');
 }

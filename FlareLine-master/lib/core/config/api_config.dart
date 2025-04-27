@@ -16,5 +16,9 @@ class ApiConfig {
   static const String docuSignSigningReturnUrl = 'http://localhost:8080/signing-complete.html';
 
   // Autres configurations
-  static const int apiTimeout = 30; // secondes
+  static const int apiTimeout = 30;
+
+  static var apiBaseUrl= "http://localhost:5000";
+
+
 }

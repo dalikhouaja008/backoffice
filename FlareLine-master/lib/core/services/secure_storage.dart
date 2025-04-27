@@ -16,7 +16,6 @@ Future<void> saveTokens({
 }) async {
   const timestamp = '2025-02-13 22:35:23';
   print('[$timestamp] 💾 Starting token save operation'
-        '\n└─ User: raednas'
         '\n└─ Access Token length: ${accessToken.length}'
         '\n└─ Refresh Token length: ${refreshToken.length}');
 
@@ -24,27 +23,23 @@ Future<void> saveTokens({
     await Future.wait([
       _storage.write(key: _accessTokenKey, value: accessToken).then((_) {
         print('[$timestamp] ✅ Access token saved successfully'
-              '\n└─ User: raednas'
               '\n└─ Key: $_accessTokenKey'
               '\n└─ Token Preview: ${accessToken.substring(0, min(10, accessToken.length))}...');
       }),
       _storage.write(key: _refreshTokenKey, value: refreshToken).then((_) {
         print('[$timestamp] ✅ Refresh token saved successfully'
-              '\n└─ User: raednas'
               '\n└─ Key: $_refreshTokenKey'
               '\n└─ Token Preview: ${refreshToken.substring(0, min(10, refreshToken.length))}...');
       }),
     ]);
 
     print('[$timestamp] 🎉 All tokens saved successfully'
-          '\n└─ User: raednas'
           '\n└─ Saved tokens:'
           '\n   ├─ Access Token: ${_accessTokenKey}'
           '\n   └─ Refresh Token: ${_refreshTokenKey}');
 
   } catch (e) {
     print('[$timestamp] ❌ Failed to save tokens'
-          '\n└─ User: raednas'
           '\n└─ Error: $e');
     throw Exception('Échec de la sauvegarde des tokens: $e');
   }

@@ -1,5 +1,8 @@
+// lib/core/injection/injection.dart
+import 'package:flareline/core/network/docusign_interceptor.dart';
 import 'package:flareline/core/network/graphql_client.dart';
 import 'package:flareline/core/routes/route_guard.dart';
+import 'package:flareline/core/routes/docusign_route_interceptor.dart';  
 import 'package:flareline/core/services/location_service.dart';
 import 'package:flareline/core/services/openroute_service.dart';
 import 'package:flareline/core/services/secure_storage.dart';
@@ -46,6 +49,10 @@ import 'package:flareline/core/services/docusign_service.dart';
 final getIt = GetIt.instance;
 
 void setupInjection() {
+  // Date et utilisateur constants pour la journalisation
+  const String timestamp = '2025-04-27 23:02:47';
+  const String currentUser = 'nesssim';
+
   // Services de base
   getIt.registerLazySingleton(() => Logger());
   getIt.registerLazySingleton(() => GraphQLService());
@@ -62,24 +69,17 @@ void setupInjection() {
   getIt.registerLazySingleton<String>(() => apiBaseUrl,
       instanceName: 'apiBaseUrl');
 
-  getIt<Logger>().i('API Base URL configurée: $apiBaseUrl ');
+  getIt<Logger>().i('[$timestamp] [$currentUser] API Base URL configurée: $apiBaseUrl');
 
-  // Configuration de Dio avec AuthInterceptor pour LandService
+  // Configuration de Dio avec les intercepteurs
   getIt.registerLazySingleton(() {
     final dio = Dio();
+    final logger = getIt<Logger>();
 
     // Configuration de base avec l'URL
     dio.options.baseUrl = apiBaseUrl;
     dio.options.connectTimeout = const Duration(seconds: 15);
     dio.options.receiveTimeout = const Duration(seconds: 15);
-
-    // Ajout des intercepteurs
-    dio.interceptors.add(
-      AuthInterceptor(
-        secureStorage: getIt<SecureStorageService>(),
-        logger: getIt<Logger>(),
-      ),
-    );
 
     // Configuration des en-têtes par défaut
     dio.options.headers = {
@@ -87,18 +87,31 @@ void setupInjection() {
       'Content-Type': 'application/json',
     };
 
-    // Ajout d'un intercepteur de logs pour le débogage
+    // Ajout de l'intercepteur d'authentification
+    dio.interceptors.add(
+      AuthInterceptor(
+        secureStorage: getIt<SecureStorageService>(),
+        logger: logger,
+      ),
+    );
+
+    // Ajout de l'intercepteur DocuSign (une seule instance)
+    dio.interceptors.add(
+      DocuSignInterceptor(logger: logger)
+    );
+
+    // Ajout de l'intercepteur de log (une seule instance)
     dio.interceptors.add(
       LogInterceptor(
         requestBody: true,
         responseBody: true,
         logPrint: (log) {
-          getIt<Logger>().d('[2025-04-13 21:30:04] [Dio] $log');
+          logger.d('[$timestamp] [$currentUser] [Dio] $log');
         },
       ),
     );
 
-    getIt<Logger>().i(' Dio client configured with AuthInterceptor');
+    logger.i('[$timestamp] [$currentUser] Dio client configuré avec AuthInterceptor et DocuSignInterceptor');
     return dio;
   });
 
@@ -136,12 +149,13 @@ void setupInjection() {
   );
 
   getIt.registerLazySingleton<DocuSignRemoteDataSource>(
-      () => DocuSignRemoteDataSource(
-            dio: getIt<Dio>(),
-            logger: getIt<Logger>(),
-            secureStorage: getIt<SecureStorageService>(),
-            baseUrl: apiBaseUrl,
-          ));
+    () => DocuSignRemoteDataSource(
+      dio: getIt<Dio>(),
+      logger: getIt<Logger>(),
+      secureStorage: getIt<SecureStorageService>(),
+      baseUrl: apiBaseUrl,
+    )
+  );
 
   // Repositories
   getIt.registerLazySingleton<GeometreRepository>(
@@ -160,14 +174,15 @@ void setupInjection() {
       remoteDataSource: getIt<ExpertJuridiqueRemoteDataSource>(),
     ),
   );
-// Repository pour DocuSign
+  
+  // Repository pour DocuSign
   getIt.registerLazySingleton<DocuSignRepository>(
     () => DocuSignRepositoryImpl(
       remoteDataSource: getIt<DocuSignRemoteDataSource>(),
     ),
   );
 
-// Use Cases pour DocuSign
+  // Use Cases pour DocuSign
   getIt.registerLazySingleton<CheckDocuSignAuthenticationUseCase>(
     () => CheckDocuSignAuthenticationUseCase(
       repository: getIt<DocuSignRepository>(),
@@ -210,7 +225,7 @@ void setupInjection() {
     ),
   );
 
-// Bloc pour DocuSign
+  // Bloc pour DocuSign
   getIt.registerFactory<DocuSignBloc>(
     () => DocuSignBloc(
       checkAuthentication: getIt<CheckDocuSignAuthenticationUseCase>(),
@@ -277,7 +292,7 @@ void setupInjection() {
   // Log initialization
   getIt<Logger>().log(
     Level.info,
-    ' Dependency injection setup completed ',
+    '[$timestamp] [$currentUser] Dependency injection setup completed',
   );
 }
 

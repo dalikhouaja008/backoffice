@@ -1,3 +1,6 @@
+import 'package:flareline/presentation/bloc/docusign/docusign_bloc.dart';
+import 'package:flareline/presentation/bloc/docusign/docusign_event.dart';
+import 'package:flareline/presentation/bloc/docusign/docusign_state.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_event.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_state.dart';
@@ -10,6 +13,7 @@ import 'package:flareline/presentation/expert_juridique/widgets/legal_header.dar
 import 'package:flareline/presentation/expert_juridique/widgets/document_list_section.dart';
 import 'package:flareline/presentation/expert_juridique/widgets/legal_verification_section.dart';
 import 'package:flareline/presentation/expert_juridique/widgets/comments_field.dart';
+import 'package:flareline/presentation/DocuSign/docusign_section.dart';
 import 'package:flareline/presentation/geometre/widgets/land_images_gallery.dart';
 import 'package:flareline/presentation/pages/form/validation_checkbox.dart';
 import 'package:flareline_uikit/components/buttons/button_form.dart';
@@ -45,6 +49,18 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
   // Variable pour la vérification des documents
   bool _documentsAreValid = false;
 
+  // Variables DocuSign
+  String? _envelopeId;
+  String? _signatureStatus;
+  bool _isDocuSignReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Vérifier l'authentification DocuSign
+    context.read<DocuSignBloc>().add(CheckDocuSignAuthenticationEvent());
+  }
+
   @override
   void dispose() {
     _commentsController.dispose();
@@ -53,96 +69,139 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ExpertJuridiqueBloc, ExpertJuridiqueState>(
-      builder: (context, state) {
-        return CommonCard(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Utiliser vos widgets personnalisés pour réduire le code
-                SizedBox(
-                  height: 240, // Hauteur fixe pour éviter les problèmes de layout
-                  child: LandImagesGallery(land: widget.land),
-                ),
-                const SizedBox(height: 16),
-                
-                // Utiliser le widget LegalHeader existant
-                const LegalHeader(),
-                const SizedBox(height: 16),
-                
-                // Utiliser le widget LandInfoSection existant
-                LandInfoSection(land: widget.land),
-                const SizedBox(height: 16),
-                
-                // Utiliser le widget DocumentListSection existant
-                DocumentListSection(
-                  land: widget.land,
-                  onDocumentsValidated: (isValid) {
-                    setState(() {
-                      _documentsAreValid = isValid;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                
-                // Utiliser le widget LegalVerificationSection existant
-                LegalVerificationSection(
-                  onVerificationsUpdated: (Map<String, bool> verifications, bool allComplete) {
-                    setState(() {
-                      _legalVerifications.addAll(verifications);
-                      _legalVerificationsComplete = allComplete;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                
-                // Utiliser le widget CommentsField existant
-                CommentsField(
-                  controller: _commentsController,
-                  land: widget.land,
-                  onGenerateComment: () => _generateComment(widget.land),
-                ),
-                const SizedBox(height: 16),
+    return BlocConsumer<DocuSignBloc, DocuSignState>(
+      listener: (context, docuSignState) {
+        if (docuSignState is DocuSignAuthenticated) {
+          setState(() {
+            _isDocuSignReady = true;
+          });
+        } else if (docuSignState is EnvelopeCreated) {
+          setState(() {
+            _envelopeId = docuSignState.envelopeId;
+            _signatureStatus = "Envoyé";
+          });
+        } else if (docuSignState is EnvelopeStatusLoaded) {
+          setState(() {
+            _signatureStatus = docuSignState.envelope.status;
+          });
+        }
+      },
+      builder: (context, docuSignState) {
+        return BlocBuilder<ExpertJuridiqueBloc, ExpertJuridiqueState>(
+          builder: (context, state) {
+            return CommonCard(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Section galerie d'images
+                    LandImagesGallery(land: widget.land),
+                    const SizedBox(height: 16),
 
-                // Checkbox de validation
-                _buildValidationCheckbox(),
-                const SizedBox(height: 24),
+                    // Section titre juridique
+                    const LegalHeader(),
+                    const SizedBox(height: 16),
 
-                // Bouton de soumission
-                _buildSubmitButton(widget.land, state),
-              ],
-            ),
-          ),
+                    // Section informations du terrain
+                    LandInfoSection(land: widget.land),
+                    const SizedBox(height: 16),
+
+                    // Section liste des documents
+                    DocumentListSection(
+                      land: widget.land,
+                      onDocumentsValidated: (isValid) {
+                        setState(() {
+                          _documentsAreValid = isValid;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Section de vérifications juridiques
+                    LegalVerificationSection(
+                      onVerificationsUpdated: 
+                        (Map<String, bool> verifications, bool allComplete) {
+                        setState(() {
+                          _legalVerifications.addAll(verifications);
+                          _legalVerificationsComplete = allComplete;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Section commentaires
+                    CommentsField(
+                      controller: _commentsController,
+                      land: widget.land,
+                      onGenerateComment: () => _generateComment(widget.land),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Section DocuSign
+                    DocuSignSection(
+                      land: widget.land,
+                      state: docuSignState,
+                      envelopeId: _envelopeId,
+                      signatureStatus: _signatureStatus,
+                      isDocuSignReady: _isDocuSignReady,
+                      onDocuSignStatusChanged: (bool isReady) {
+                        setState(() {
+                          _isDocuSignReady = isReady;
+                        });
+                      },
+                      onEnvelopeIdChanged: (String envelopeId) {
+                        setState(() {
+                          _envelopeId = envelopeId;
+                        });
+                      },
+                      onStatusChanged: (String status) {
+                        setState(() {
+                          _signatureStatus = status;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Checkbox de validation
+                    ValidationCheckbox(
+                      value: _isValid,
+                      label: "Je confirme que les informations juridiques saisies sont correctes",
+                      checkColor: GlobalColors.primary,
+                      onChanged: (value) {
+                        setState(() {
+                          _isValid = value ?? false;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Bouton de soumission
+                    _buildSubmitButton(widget.land),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  /// Checkbox de validation
-  Widget _buildValidationCheckbox() {
-    return ValidationCheckbox(
-      value: _isValid,
-      label: "Je confirme que les informations juridiques saisies sont correctes",
-      checkColor: GlobalColors.primary,
-      onChanged: (value) {
-        setState(() {
-          _isValid = value ?? false;
-        });
-      },
-    );
-  }
-
   /// Bouton de soumission du formulaire
-  Widget _buildSubmitButton(Land land, ExpertJuridiqueState state) {
-    final bool isValidating = state is ValidationInProgress;
+  Widget _buildSubmitButton(Land land) {
+    return BlocBuilder<ExpertJuridiqueBloc, ExpertJuridiqueState>(
+      builder: (context, state) {
+        final bool isValidating = state is ValidationInProgress;
 
-    return ButtonForm(
-      btnText: isValidating ? "Validation en cours..." : "Valider juridiquement",
-      type: ButtonType.primary.type,
-      isLoading: isValidating,
-      onPressed: isValidating ? null : () => _submitForm(context, land),
+        return ButtonForm(
+          btnText:
+              isValidating ? "Validation en cours..." : "Valider juridiquement",
+          type: ButtonType.primary.type,
+          isLoading: isValidating,
+          onPressed: isValidating ? null : () => _submitForm(context, land),
+        );
+      },
     );
   }
 
@@ -153,7 +212,7 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
 
     // Construction du commentaire complet
     final StringBuilder = StringBuffer();
-    final timestamp = "2025-04-26 21:48:53"; // Date actuelle mise à jour
+    final timestamp = "2025-04-26 22:08:23"; // Date actualisée (UTC)
 
     StringBuilder.writeln('RAPPORT DE VALIDATION JURIDIQUE');
     StringBuilder.writeln('Terrain: "${land.title}" situé à ${land.location}');
@@ -226,6 +285,15 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
     StringBuilder.writeln('- Adresse du propriétaire: ${land.ownerAddress}');
     StringBuilder.writeln('- Surface déclarée: ${land.surface} m²');
     StringBuilder.writeln();
+
+    // Information sur la signature électronique
+    if (_envelopeId != null) {
+      StringBuilder.writeln('SIGNATURE ÉLECTRONIQUE:');
+      StringBuilder.writeln('✓ Document envoyé pour signature électronique via DocuSign');
+      StringBuilder.writeln('- ID de l\'enveloppe: $_envelopeId');
+      StringBuilder.writeln('- Statut actuel: $_signatureStatus');
+      StringBuilder.writeln();
+    }
 
     // Conclusion générale
     final allVerificationsComplete = _legalVerifications.values.every((v) => v);
@@ -313,9 +381,49 @@ class _JuridicalValidationFormState extends State<JuridicalValidationForm> {
         return;
       }
 
-      // Inclure l'information sur la validation des documents dans les commentaires
-      final timestamp = "2025-04-26 21:48:53"; // Date actuelle mise à jour
-      final commentsWithDetails = '''
+      // Si DocuSign est prêt mais qu'aucun document n'a été envoyé pour signature,
+      // demander à l'utilisateur s'il souhaite continuer sans signature
+      if (hasDocuments && _isDocuSignReady && _envelopeId == null) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Signature électronique'),
+            content: const Text(
+                'Les documents n\'ont pas encore été envoyés pour signature électronique. '
+                'Voulez-vous continuer la validation sans signature électronique?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Annuler'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _completeSubmission(context, land);
+                },
+                child: const Text('Continuer sans signature'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: GlobalColors.primary,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        _completeSubmission(context, land);
+      }
+    }
+  }
+
+  void _completeSubmission(BuildContext context, Land land) {
+    // Inclure l'information sur la validation des documents et la signature dans les commentaires
+    final timestamp = "2025-04-26 22:08:23"; // Date actualisée (UTC)
+    final signatureInfo = _envelopeId != null
+        ? "- Signature électronique: OUI (ID: $_envelopeId, Statut: $_signatureStatus)"
+        : "- Signature électronique: NON";
+
+    final commentsWithDetails = '''
 ${_commentsController.text}
 
 RÉSUMÉ DE VALIDATION:
@@ -326,14 +434,14 @@ RÉSUMÉ DE VALIDATION:
 - Absence de litiges confirmée: ${_legalVerifications['no_disputes']! ? "OUI" : "NON"}
 - Limites du terrain validées: ${_legalVerifications['boundaries_valid']! ? "OUI" : "NON"}
 - Droits d'usage conformes: ${_legalVerifications['usage_rights']! ? "OUI" : "NON"}
+$signatureInfo
 ''';
 
-      // Soumettre le formulaire
-      context.read<ExpertJuridiqueBloc>().add(ValidateLand(
-            landId: land.blockchainLandId,
-            isValid: _isValid,
-            comment: commentsWithDetails,
-          ));
-    }
+    // Soumettre le formulaire
+    context.read<ExpertJuridiqueBloc>().add(ValidateLand(
+          landId: land.blockchainLandId,
+          isValid: _isValid,
+          comment: commentsWithDetails,
+        ));
   }
 }

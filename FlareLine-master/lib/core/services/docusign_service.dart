@@ -496,53 +496,81 @@ class DocuSignService {
     }
   }
 
-// Modifier la méthode createEmbeddedSigningUrl pour qu'elle soit plus facile à utiliser
+
   Future<Map<String, dynamic>> createEmbeddedSigningUrl({
     required String envelopeId,
     required String signerEmail,
     required String signerName,
   }) async {
+    // Vérifier si nous avons un token d'accès valide
     if (accessToken == null) {
       final hasToken = checkExistingAuth();
-      if (!hasToken) return {'success': false, 'error': 'Non authentifié'};
+      if (!hasToken) {
+        return {'success': false, 'error': 'Non authentifié à DocuSign'};
+      }
     }
 
     try {
-      final viewUrl =
-          '${ApiConfig.docuSignBaseUrl}/v2.1/accounts/${ApiConfig.docuSignAccountId}/envelopes/$envelopeId/views/recipient';
+      // URL de l'API backend
+      final url = '${ApiConfig.apiBaseUrl}/docusign/embedded-signing';
 
-      final viewRequest = {
-        'authenticationMethod': 'None',
-        'email':
-            signerEmail, // L'email doit correspondre à un signataire existant
-        'returnUrl': ApiConfig
-            .docuSignSigningReturnUrl, // URL où rediriger après la signature
-        'userName':
-            signerName, // Le nom doit correspondre à un signataire existant
-        'clientUserId':
-            '1001' // Identifiant pour la signature intégrée (doit correspondre à celui de l'enveloppe)
+      // URL de retour après signature
+      final returnUrl =
+          '${ApiConfig.docuSignSigningReturnUrl}?envelopeId=$envelopeId&signing_complete=true';
+
+      // Données à envoyer
+      final Map<String, dynamic> data = {
+        'envelopeId': envelopeId,
+        'signerEmail': signerEmail,
+        'signerName': signerName,
+        'returnUrl': returnUrl,
       };
 
+      // En-têtes avec le token DocuSign
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization':
+            'Bearer app_token_here', // Remplacer par votre token d'application si nécessaire
+        'X-DocuSign-Token':
+            'Bearer $accessToken', // Le token DocuSign dans l'en-tête spécial
+      };
+
+      print(
+          'Envoi de la requête à $url avec token DocuSign: ${accessToken!.substring(0, min(10, accessToken!.length))}...');
+
+      // Appel à l'API de votre backend
       final response = await http
-          .post(Uri.parse(viewUrl),
-              headers: {
-                'Authorization': 'Bearer $accessToken',
-                'Content-Type': 'application/json'
-              },
-              body: json.encode(viewRequest))
+          .post(
+            Uri.parse(url),
+            headers: headers,
+            body: jsonEncode(data),
+          )
           .timeout(Duration(seconds: ApiConfig.apiTimeout));
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        final signingUrl =
-            responseData['url']; // URL pour la signature intégrée
-        return {'success': true, 'signingUrl': signingUrl};
+
+        if (responseData['success'] == true) {
+          final signingUrl = responseData['signingUrl'];
+          print(
+              'URL de signature obtenue avec succès: $signingUrl...');
+
+          return {
+            'success': true,
+            'signingUrl': signingUrl,
+          };
+        } else {
+          print('Erreur retournée par l\'API: ${responseData['error']}');
+          return {
+            'success': false,
+            'error': responseData['error'] ?? 'Erreur inconnue'
+          };
+        }
       } else {
-        print(
-            'Erreur lors de la création de l\'URL de signature: ${response.statusCode} - ${response.body}');
+        print('Erreur HTTP ${response.statusCode}: ${response.body}');
         return {
           'success': false,
-          'error': 'Erreur lors de la création de l\'URL de signature'
+          'error': 'Erreur HTTP ${response.statusCode}'
         };
       }
     } catch (e) {
@@ -550,4 +578,6 @@ class DocuSignService {
       return {'success': false, 'error': e.toString()};
     }
   }
+
+ 
 }

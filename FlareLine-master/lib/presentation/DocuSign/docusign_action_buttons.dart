@@ -193,26 +193,26 @@ class DocuSignActionButtons extends StatelessWidget {
   }
   
   // Initialiser le processus de signature
-  void _initiateSigningProcess(BuildContext context) async {
-    try {
-      // Convertir le document en base64
-      final documentService = DocuSignDocumentService();
-      final documentBase64 = await documentService.prepareDocumentForSignature(land);
-      
-      // Créer une enveloppe via le BLoC
-      context.read<DocuSignBloc>().add(CreateEnvelopeEvent(
-        documentBase64: documentBase64,
-        signerEmail: 'expert.juridique@flareline.com', // À adapter
-        signerName: 'Expert Juridique', // À adapter
-        title: 'Validation du terrain: ${land.title}',
-      ));
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+ void _initiateSigningProcess(BuildContext context) async {
+  try {
+    // Convertir le document en base64
+    final documentService = DocuSignDocumentService();
+    final documentBase64 = await documentService.prepareDocumentForSignature(land);
+    
+
+    context.read<DocuSignBloc>().add(CreateEnvelopeEvent(
+      documentBase64: documentBase64,
+      signerEmail: 'mohamedali.khouaja@esprit.tn', 
+      signerName: 'Mohamed ali', 
+      title: 'Validation du terrain: ${land.title}',
+    ));
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Erreur: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
 }

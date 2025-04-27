@@ -1,4 +1,5 @@
 import 'package:flareline/core/injection/injection.dart';
+import 'package:flareline/core/services/secure_storage.dart';
 import 'package:flareline/core/theme/global_theme.dart';
 import 'package:flareline_uikit/service/localization_provider.dart';
 import 'package:flareline/routes.dart';
@@ -23,6 +24,10 @@ void main() async {
   
   // Initialiser le stockage
   await GetStorage.init();
+
+    final secureStorage = getIt<SecureStorageService>();
+      await secureStorage.deleteTokens();
+  print(' ✅ TEST: Tokens supprimés avec succès');
 
   // Configuration pour les appareils mobiles
   if (GetPlatform.isMobile) {
