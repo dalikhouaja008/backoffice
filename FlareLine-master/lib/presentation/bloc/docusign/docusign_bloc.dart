@@ -1,3 +1,5 @@
+import 'package:flareline/core/injection/injection.dart';
+import 'package:flareline/core/services/docusign_service.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flareline/domain/use_cases/docusign/check_authentication_use_case.dart';
 import 'package:flareline/domain/use_cases/docusign/initiate_authentication_use_case.dart';
@@ -37,6 +39,7 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
     on<CheckEnvelopeStatusEvent>(_onCheckEnvelopeStatus);
     on<DownloadDocumentEvent>(_onDownloadDocument);
     on<GetSignatureHistoryEvent>(_onGetSignatureHistory);
+    on<UpdateDocuSignTokenEvent>(_onUpdateToken);
   }
   
   Future<void> _onCheckAuthentication(
@@ -205,4 +208,28 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
       emit(SignatureHistoryError('Erreur lors de la récupération de l\'historique: $e'));
     }
   }
+
+  Future<void> _onUpdateToken(
+  UpdateDocuSignTokenEvent event,
+  Emitter<DocuSignState> emit,
+) async {
+  final timestamp = DateTime.now().toIso8601String();
+  logger.i('[$timestamp] 🔄 Mise à jour manuelle du token DocuSign');
+  
+  try {
+    // Ceci assume que vous avez accès à un service DocuSign
+    // Si ce n'est pas le cas, vous devez adapter cette partie
+    final docuSignService = getIt<DocuSignService>();
+    docuSignService.setAccessToken(
+      event.token,
+      expiresIn: event.expiresIn,
+    );
+    
+    logger.i('[$timestamp] ✅ Token DocuSign mis à jour manuellement');
+    emit(DocuSignAuthenticated());
+  } catch (e) {
+    logger.e('[$timestamp] ❌ Erreur lors de la mise à jour du token: $e');
+    emit(DocuSignAuthError('Erreur lors de la mise à jour du token: $e'));
+  }
+}
  }

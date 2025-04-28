@@ -21,7 +21,7 @@ class DocuSignRemoteDataSource {
     required this.dio,
     required this.logger,
     required this.secureStorage,
-    this.baseUrl = 'https://api.landservice.com', // Remplacez par votre URL d'API
+    this.baseUrl = 'https://api.landservice.com', 
   });
 
   // Méthode pour vérifier si l'utilisateur est connecté à DocuSign

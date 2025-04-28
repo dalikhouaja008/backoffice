@@ -1,5 +1,6 @@
 import 'dart:html' as html;
 import 'dart:math' as math;
+import 'package:flareline/core/routes/docusign_route_interceptor.dart';
 import 'package:flutter/material.dart';
 import 'package:flareline/core/injection/injection.dart';
 import 'package:flareline/core/services/docusign_service.dart';
@@ -20,11 +21,12 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
   bool _success = false;
   String _message = "Traitement de l'authentification DocuSign...";
   String _details = "";
-  
+
   // Utiliser getIt.get pour éviter les instances potentiellement dupliquées
   Logger get _logger => getIt.get<Logger>();
   DocuSignService get _docuSignService => getIt.get<DocuSignService>();
-  DocuSignRemoteDataSource get _dataSource => getIt.get<DocuSignRemoteDataSource>();
+  DocuSignRemoteDataSource get _dataSource =>
+      getIt.get<DocuSignRemoteDataSource>();
 
   @override
   void initState() {
@@ -38,10 +40,11 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
   Future<void> _processAuthParameters() async {
     final timestamp = '2025-04-27 22:44:35';
     final currentUser = 'nesssim';
-    
+
     try {
-      _logger.i('[$timestamp] [$currentUser] 🔍 Traitement des paramètres DocuSign');
-      
+      _logger.i(
+          '[$timestamp] [$currentUser] 🔍 Traitement des paramètres DocuSign');
+
       // Obtenir l'URL actuelle et ses paramètres
       final uri = Uri.parse(html.window.location.href);
       final params = uri.queryParameters;
@@ -49,7 +52,8 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
       _logger.i('[$timestamp] [$currentUser] 📝 Paramètres reçus: $params');
       setState(() {
         final urlString = uri.toString();
-        _details = "URL: ${urlString.substring(0, math.min(100, urlString.length))}...\nParams: $params";
+        _details =
+            "URL: ${urlString.substring(0, math.min(100, urlString.length))}...\nParams: $params";
       });
 
       // Vérifier s'il s'agit d'une erreur
@@ -61,47 +65,50 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
       // Obtenir le token et autres paramètres
       final token = params['token'];
       final jwt = params['jwt'];
-      final code = params['code']; 
+      final code = params['code'];
       final expiresIn = int.tryParse(params['expires_in'] ?? '3600') ?? 3600;
       final accountId = params['account_id'];
 
       // Cas 1: Token direct
       if (token != null && token.isNotEmpty) {
-        _logger.i('[$timestamp] [$currentUser] ✅ Token reçu: ${token.substring(0, math.min(10, token.length))}...');
-        
+        _logger.i(
+            '[$timestamp] [$currentUser] ✅ Token reçu: ${token.substring(0, math.min(10, token.length))}...');
+
         // Stocker le token dans le service
         _docuSignService.setAccessToken(token, expiresIn: expiresIn);
-        
+
         // Stocker les données supplémentaires dans localStorage
         if (jwt != null) html.window.localStorage['docusign_jwt'] = jwt;
-        if (accountId != null) html.window.localStorage['docusign_account_id'] = accountId;
-        
+        if (accountId != null)
+          html.window.localStorage['docusign_account_id'] = accountId;
+
         // Sauvegarder aussi via le datasource
         await _dataSource.saveTokenFromLocalStorage();
-        
+
         setState(() {
           _processing = false;
           _success = true;
           _message = "Authentification DocuSign réussie!";
           _details += "\nToken stocké avec succès";
         });
-      } 
+      }
       // Cas 2: Code d'autorisation
       else if (code != null && code.isNotEmpty) {
-        _logger.i('[$timestamp] [$currentUser] 🔄 Traitement du code d\'autorisation');
-        
+        _logger.i(
+            '[$timestamp] [$currentUser] 🔄 Traitement du code d\'autorisation');
+
         setState(() {
           _message = "Échange du code d'autorisation...";
         });
-        
+
         final success = await _docuSignService.processAuthCode(code);
-        
+
         if (success) {
           _logger.i('[$timestamp] [$currentUser] ✅ Code échangé avec succès');
-          
+
           // Sauvegarder les tokens
           await _dataSource.saveTokenFromLocalStorage();
-          
+
           setState(() {
             _processing = false;
             _success = true;
@@ -111,20 +118,20 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
         } else {
           throw Exception('Échec de l\'échange du code d\'autorisation');
         }
-      } 
+      }
       // Cas 3: Aucun paramètre valide
       else {
-        throw Exception('Aucun token ou code d\'autorisation trouvé dans l\'URL');
+        throw Exception(
+            'Aucun token ou code d\'autorisation trouvé dans l\'URL');
       }
-      
+
       // Attendre un peu avant de rediriger
       await Future.delayed(const Duration(seconds: 2));
-      
+
       // IMPORTANT: Utiliser la navigation sans provoquer d'effets secondaires
       if (mounted) {
         _redirectToMainPage();
       }
-      
     } catch (e) {
       _logger.e('[$timestamp] [$currentUser] ❌ Erreur: $e');
       if (mounted) {
@@ -137,35 +144,29 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
       }
     }
   }
-  
-  void _handleErrorParameters(Map<String, String> params, String timestamp, String currentUser) {
+
+  void _handleErrorParameters(
+      Map<String, String> params, String timestamp, String currentUser) {
     final error = params['error'] ?? "Erreur inconnue";
     final code = params['code'] ?? "Non disponible";
     final state = params['state'] ?? "Non disponible";
-    
+
     _logger.e('[$timestamp] [$currentUser] ❌ Erreur DocuSign: $error');
-    
+
     setState(() {
       _processing = false;
       _success = false;
       _message = "Erreur d'authentification DocuSign";
       _details = "Message: $error\nCode: $code\nÉtat: $state";
     });
-    
-    html.window.localStorage['docusign_last_error'] = 
+
+    html.window.localStorage['docusign_last_error'] =
         'Erreur: $error, Code: $code, État: $state, Timestamp: $timestamp, User: $currentUser';
   }
 
   void _redirectToMainPage() {
-    // CRUCIAL: Plutôt que d'utiliser Navigator, utilisez html pour naviguer
-    // Cela évite complètement les problèmes de GlobalKey avec Navigator
-    
-    // Option 1: Utiliser location.replace pour éviter l'histoire de navigation
-    html.window.location.replace('/#/expert_juridique');
-    
-    // OU Option 2: Utiliser window.history.pushState pour un changement côté client uniquement
-    // html.window.history.pushState(null, 'Expert Juridique', '/#/expert_juridique');
-    // Puis informer Flutter d'une navigation - mais cela nécessite un routeur personnalisé
+    // Au lieu d'aller directement à expert_juridique, retourner à la page d'origine
+    DocuSignRouteInterceptor.returnToOriginPage();
   }
 
   void _retryAuthentication() {
@@ -176,15 +177,15 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_success 
-            ? 'Authentification DocuSign' 
-            : _processing 
-                ? 'Traitement en cours' 
+        title: Text(_success
+            ? 'Authentification DocuSign'
+            : _processing
+                ? 'Traitement en cours'
                 : 'Erreur DocuSign'),
-        backgroundColor: _success 
-            ? GlobalColors.primary 
-            : _processing 
-                ? GlobalColors.primary 
+        backgroundColor: _success
+            ? GlobalColors.primary
+            : _processing
+                ? GlobalColors.primary
                 : Colors.red[800],
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false, // Pas de bouton retour
@@ -223,9 +224,13 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
                 Text(
                   _message,
                   style: TextStyle(
-                    fontSize: 22, 
+                    fontSize: 22,
                     fontWeight: FontWeight.w500,
-                    color: _success ? Colors.green[700] : _processing ? Colors.black : Colors.red[700],
+                    color: _success
+                        ? Colors.green[700]
+                        : _processing
+                            ? Colors.black
+                            : Colors.red[700],
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -250,43 +255,49 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
                 const SizedBox(height: 24),
                 if (!_processing)
                   _success
-                    ? ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: GlobalColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                          minimumSize: const Size(200, 50),
-                        ),
-                        onPressed: () => html.window.location.replace('/#/expert_juridique'),
-                        child: const Text(
-                          'Continuer',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: GlobalColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                            ),
-                            onPressed: _retryAuthentication,
-                            child: const Text('Réessayer', style: TextStyle(fontSize: 16)),
+                      ? ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: GlobalColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 32, vertical: 16),
+                            minimumSize: const Size(200, 50),
                           ),
-                          const SizedBox(width: 16),
-                          OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: GlobalColors.primary,
-                              side: BorderSide(color: GlobalColors.primary),
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                            ),
-                            onPressed: () => html.window.location.replace('/#/expert_juridique'),
-                            child: const Text('Retour', style: TextStyle(fontSize: 16)),
+                          onPressed: () => DocuSignRouteInterceptor.returnToOriginPage(),
+                          child: const Text(
+                            'Continuer',
+                            style: TextStyle(fontSize: 16),
                           ),
-                        ],
-                      ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: GlobalColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 16),
+                              ),
+                              onPressed: _retryAuthentication,
+                              child: const Text('Réessayer',
+                                  style: TextStyle(fontSize: 16)),
+                            ),
+                            const SizedBox(width: 16),
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: GlobalColors.primary,
+                                side: BorderSide(color: GlobalColors.primary),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 16),
+                              ),
+                              onPressed: () => html.window.location
+                                  .replace('/#/expert_juridique'),
+                              child: const Text('Retour',
+                                  style: TextStyle(fontSize: 16)),
+                            ),
+                          ],
+                        ),
               ],
             ),
           ),
