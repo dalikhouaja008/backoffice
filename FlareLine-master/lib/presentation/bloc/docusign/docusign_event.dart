@@ -74,5 +74,17 @@ class OpenSigningUrlEvent extends DocuSignEvent {
     required this.signerName,
   });
 }
+class UpdateDocuSignTokenEvent extends DocuSignEvent {
+  final String token;
+  final int? expiresIn;
+  
+  const UpdateDocuSignTokenEvent({
+    required this.token,
+    this.expiresIn,
+  });
+  
+  @override
+  List<Object?> get props => [token, expiresIn];
+}
 
 class GetSignatureHistoryEvent extends DocuSignEvent {}
