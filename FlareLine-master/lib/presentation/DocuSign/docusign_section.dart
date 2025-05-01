@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flareline/core/services/secure_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,6 +10,7 @@ import 'package:flareline/presentation/bloc/docusign/docusign_event.dart';
 import 'package:flareline/presentation/bloc/docusign/docusign_state.dart';
 import 'package:flareline/core/services/docusign_service.dart';
 import 'package:flareline/core/injection/injection.dart';
+import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'dart:convert';
 import 'dart:html' as html;
@@ -42,22 +45,31 @@ class _DocuSignSectionState extends State<DocuSignSection> {
   html.WindowBase? _authWindow;
   final Logger _logger = getIt<Logger>();
   final DocuSignService _docuSignService = getIt<DocuSignService>();
+  final SecureStorageService _secureStorage = getIt<SecureStorageService>();
 
-@override
-void initState() {
-  super.initState();
-  
-  // Configurer l'écouteur de messages pour les tokens DocuSign
-  _setupMessageListener();
-  
-  // Vérifier s'il y a déjà un token disponible, mais SANS appeler setState pendant le build
-  if (_docuSignService.checkExistingAuth()) {
-    // Utiliser cette technique pour reporter l'exécution après la construction
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      widget.onDocuSignStatusChanged(true);
+  @override
+  void initState() {
+    super.initState();
+
+    // Configurer l'écouteur de messages pour les tokens DocuSign
+    _setupMessageListener();
+
+    // Vérifier l'authentification existante de façon asynchrone
+    _checkExistingAuth();
+  }
+
+  // Méthode séparée pour vérifier l'authentification existante
+  void _checkExistingAuth() {
+    // Utiliser then() au lieu de await pour gérer le résultat asynchrone
+    _docuSignService.isAuthenticated.then((isAuthenticated) {
+      if (isAuthenticated && mounted) {
+        // Utiliser cette technique pour reporter l'exécution après la construction
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          widget.onDocuSignStatusChanged(true);
+        });
+      }
     });
   }
-}
 
   @override
   void dispose() {
@@ -65,83 +77,85 @@ void initState() {
     _closeAuthWindowIfOpen();
     super.dispose();
   }
-void _setupMessageListener() {
-  _logger.i('🔒 Configuration de l\'écouteur de messages DocuSign');
-  
-  html.window.onMessage.listen((html.MessageEvent event) {
-    try {
-      _logger.i('📨 Message reçu: ${event.data.runtimeType}');
-      
-      // Vérifier si le message est une Map
-      if (event.data is Map) {
-        final data = event.data;
-        
-        // Vérifier si c'est un token DocuSign
-        if (data['type'] == 'DOCUSIGN_TOKEN') {
-          final token = data['token'];
-          final expiresIn = data['expiresIn']; // Noter que le backend pourrait envoyer 'expiresIn'
-          final accountId = data['accountId'];
-          final expiry = data['expiry']; // Récupérer la valeur d'expiry envoyée par le backend
-          
-          if (token != null && token is String) {
-            _logger.i('🔑 Token DocuSign reçu via postMessage');
-            
-            // Mettre à jour le token dans le service
-            _docuSignService.setAccessToken(token, expiresIn: expiresIn);
-            
-            // Stocker le token dans le stockage sécurisé
-            // Utiliser la valeur expiry si disponible, sinon calculer à partir de expiresIn
-            final String? expiryValue = expiry != null ? expiry.toString() : null;
-            _storeTokenInSecureStorage(token, accountId, expiresIn, expiryValue);
-            
-            // Utiliser WidgetsBinding pour sécuriser l'appel à setState
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                // Mettre à jour l'état dans l'interface
-                setState(() {
-                  widget.onDocuSignStatusChanged(true);
-                });
-                
-                // Fermer la fenêtre d'authentification
-                _closeAuthWindowIfOpen();
-                
-                // Afficher une notification de succès
-                _showSuccessNotification();
-              }
-            });
+
+  void _setupMessageListener() {
+    _logger.i('🔒 Configuration de l\'écouteur de messages DocuSign');
+
+    html.window.onMessage.listen((html.MessageEvent event) {
+      try {
+        _logger.i('📨 Message reçu: ${event.data.runtimeType}');
+
+        // Vérifier si le message est une Map
+        if (event.data is Map) {
+          final data = event.data;
+
+          // Vérifier si c'est un token DocuSign
+          if (data['type'] == 'DOCUSIGN_TOKEN') {
+            final token = data['token'];
+            final expiresIn = data['expiresIn']; 
+            final accountId = data['accountId'];
+            final expiry = data['expiry']; 
+
+            if (token != null && token is String) {
+              _logger.i('🔑 Token DocuSign reçu via postMessage');
+
+              // Mettre à jour le token dans le service
+              _docuSignService.setAccessToken(token, expiresIn: expiresIn);
+
+              // Stocker le token dans le stockage sécurisé
+              _storeTokenInSecureStorage(token, accountId, expiresIn, expiryValue: expiry?.toString());
+              
+              // Utiliser WidgetsBinding pour sécuriser l'appel à setState
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  // Mettre à jour l'état dans l'interface
+                  setState(() {
+                    widget.onDocuSignStatusChanged(true);
+                  });
+
+                  // Fermer la fenêtre d'authentification
+                  _closeAuthWindowIfOpen();
+
+                  // Afficher une notification de succès
+                  _showSuccessNotification();
+                }
+              });
+            }
           }
         }
+      } catch (e) {
+        _logger.e('❌ Erreur lors du traitement du message: $e');
       }
-    } catch (e) {
-      _logger.e('❌ Erreur lors du traitement du message: $e');
-    }
-  });
-}
-
-void _storeTokenInSecureStorage(String token, String? accountId, int? expiresIn, [String? expiry]) {
-  try {
-    // Récupérer le service de stockage sécurisé
-    final secureStorage = getIt<SecureStorageService>();
-    
-    // Stocker le token
-    secureStorage.write(key: 'docusign_token', value: token);
-    
-    // Stocker l'ID du compte si disponible
-    if (accountId != null && accountId.isNotEmpty) {
-      secureStorage.write(key: 'docusign_account_id', value: accountId);
-    }
-    
-    // Utiliser l'expiration reçue ou en calculer une nouvelle
-    final expiryValue = expiry ?? 
-        DateTime.now().add(Duration(seconds: expiresIn ?? 3600)).millisecondsSinceEpoch.toString();
-    
-    secureStorage.write(key: 'docusign_expiry', value: expiryValue);
-    
-    _logger.i('🔒 Token DocuSign stocké dans le stockage sécurisé');
-  } catch (e) {
-    _logger.e('❌ Erreur lors du stockage du token dans le stockage sécurisé: $e');
+    });
   }
-}
+
+  void _storeTokenInSecureStorage(
+      String token, String? accountId, int? expiresIn,
+      {String? expiryValue}) {
+    try {
+      // Stocker le token
+      _secureStorage.write(key: 'docusign_token', value: token);
+
+      // Stocker l'ID du compte si disponible
+      if (accountId != null && accountId.isNotEmpty) {
+        _secureStorage.write(key: 'docusign_account_id', value: accountId);
+      }
+
+      // Utiliser l'expiration reçue ou en calculer une nouvelle
+      final expiryToStore = expiryValue ?? 
+          DateTime.now()
+              .add(Duration(seconds: expiresIn ?? 3600))
+              .millisecondsSinceEpoch
+              .toString();
+
+      _secureStorage.write(key: 'docusign_expiry', value: expiryToStore);
+
+      _logger.i('🔒 Token DocuSign stocké dans le stockage sécurisé');
+    } catch (e) {
+      _logger.e('❌ Erreur lors du stockage du token dans le stockage sécurisé: $e');
+    }
+  }
+
   void _closeAuthWindowIfOpen() {
     if (_authWindow != null && !_authWindow!.closed!) {
       _authWindow!.close();
@@ -403,7 +417,7 @@ void _storeTokenInSecureStorage(String token, String? accountId, int? expiresIn,
     );
   }
 
-  // Nouvelle méthode pour gérer l'authentification DocuSign
+  // Méthode pour gérer l'authentification DocuSign
   void _initiateDocuSignAuth() {
     // Notifier le bloc pour commencer le processus d'authentification
     context.read<DocuSignBloc>().add(InitiateDocuSignAuthenticationEvent());
@@ -436,11 +450,13 @@ void _storeTokenInSecureStorage(String token, String? accountId, int? expiresIn,
       });
     } else {
       // La fenêtre a été fermée, vérifier si nous avons un token
-      if (_docuSignService.checkExistingAuth() && !widget.isDocuSignReady) {
-        setState(() {
-          widget.onDocuSignStatusChanged(true);
-        });
-      }
+      _docuSignService.isAuthenticated.then((isAuthenticated) {
+        if (isAuthenticated && !widget.isDocuSignReady && mounted) {
+          setState(() {
+            widget.onDocuSignStatusChanged(true);
+          });
+        }
+      });
     }
   }
 
@@ -456,23 +472,38 @@ void _storeTokenInSecureStorage(String token, String? accountId, int? expiresIn,
     }
 
     try {
-      // Récupérer le premier document
+      // Afficher un indicateur de chargement
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chargement du document en cours...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+      
+      // Récupérer l'URL du premier document
       final documentUrl = widget.land.documentUrls.first;
-
-      // Simuler la récupération du document (dans un projet réel, vous téléchargeriez le document)
-      // Pour cette démonstration, on utilise un document fictif
-      final documentBase64 =
-          base64Encode(utf8.encode('Document simulé pour signature'));
-
-      // Créer l'enveloppe DocuSign
+      
+      // Télécharger le document depuis l'URL
+      final response = await http.get(Uri.parse(documentUrl));
+      
+      if (response.statusCode != 200) {
+        throw Exception('Échec du téléchargement du document: ${response.statusCode}');
+      }
+      
+      // Convertir le document en base64
+      final documentBase64 = base64Encode(response.bodyBytes);
+      
+      _logger.i('📄 Document téléchargé et encodé en base64: ${documentBase64.substring(0, min(50, documentBase64.length))}...');
+      
+      // Créer l'enveloppe DocuSign avec le vrai document
       context.read<DocuSignBloc>().add(CreateEnvelopeEvent(
-            documentBase64: documentBase64,
-            signerEmail:
-                'nesssim@example.com', // Utiliser une adresse email valide pour les tests
-            signerName: 'nesssim',
-            title: 'Validation juridique - ${widget.land.title}',
-          ));
+        documentBase64: documentBase64,
+        signerEmail: 'mohamedali.khouaja@esprit.tn', // À remplacer par l'email réel du signataire
+        signerName: 'Nessim', // À remplacer par le nom réel du signataire
+        title: 'Validation juridique - ${widget.land.title}',
+      ));
     } catch (e) {
+      _logger.e('❌ Erreur lors de la préparation du document: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Erreur: ${e.toString()}'),

@@ -118,3 +118,7 @@ class SignatureHistoryError extends DocuSignState {
   @override
   List<Object?> get props => [message];
 }
+
+class DocuSignAuthRequired extends DocuSignState {
+  const DocuSignAuthRequired();
+}

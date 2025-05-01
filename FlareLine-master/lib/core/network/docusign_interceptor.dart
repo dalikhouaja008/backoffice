@@ -1,35 +1,44 @@
-import 'dart:html' as html;
+import 'dart:html' as html; 
 import 'package:dio/dio.dart';
 import 'package:flareline/core/injection/injection.dart';
 import 'package:logger/logger.dart';
+import 'package:flareline/core/services/secure_storage.dart'; 
 
 class DocuSignInterceptor extends Interceptor {
   final Logger _logger;
+  final SecureStorageService _secureStorage;
   
-  DocuSignInterceptor({Logger? logger}) : _logger = logger ?? getIt<Logger>();
+  // Clés pour le stockage sécurisé
+  static const String _tokenKey = 'docusign_token';
+  static const String _jwtKey = 'docusign_jwt';
+  
+  DocuSignInterceptor({
+    Logger? logger,
+    SecureStorageService? secureStorage,
+  }) : 
+    _logger = logger ?? getIt<Logger>(),
+    _secureStorage = secureStorage ?? getIt<SecureStorageService>();
 
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-
-    
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     // Vérifier si c'est une requête vers un endpoint DocuSign
     if (options.path.contains('/docusign/')) {
       _logger.i('🔒 Ajout des tokens DocuSign pour ${options.path}');
       
-      // Vérifier si nous avons un JWT dans localStorage
-      final jwt = html.window.localStorage['docusign_jwt'];
+      // Vérifier si nous avons un JWT dans le stockage sécurisé
+      final jwt = await _secureStorage.read(key: _jwtKey);
       if (jwt != null && jwt.isNotEmpty) {
         _logger.i('🔑 Utilisation du JWT DocuSign');
         options.headers['X-DocuSign-Token'] = 'Bearer $jwt';
       } 
       // Sinon, utiliser le token standard s'il existe
       else {
-        final token = html.window.localStorage['docusign_token'];
+        final token = await _secureStorage.read(key: _tokenKey);
         if (token != null && token.isNotEmpty) {
-          _logger.i(' 🔑 Utilisation du token DocuSign standard');
+          _logger.i('🔑 Utilisation du token DocuSign standard');
           options.headers['X-DocuSign-Token'] = 'Bearer $token';
         } else {
-          _logger.w('⚠️ Aucun token DocuSign trouvé dans localStorage');
+          _logger.w('⚠️ Aucun token DocuSign trouvé dans le stockage sécurisé');
         }
       }
     }
@@ -39,9 +48,7 @@ class DocuSignInterceptor extends Interceptor {
   }
   
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-
-    
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
     // Intercepter les erreurs 401/403 qui pourraient indiquer un token expiré
     if (err.response != null && 
         (err.response!.statusCode == 401 || err.response!.statusCode == 403) &&
@@ -50,10 +57,11 @@ class DocuSignInterceptor extends Interceptor {
       _logger.e('🚫 Erreur d\'authentification DocuSign (${err.response!.statusCode})');
       
       // Nettoyer les tokens expirés
-      html.window.localStorage.remove('docusign_token');
-      html.window.localStorage.remove('docusign_jwt');
+      await Future.wait([
+        _secureStorage.delete(key: _tokenKey),
+        _secureStorage.delete(key: _jwtKey),
+      ]);
       
-      // Vous pourriez ici déclencher une nouvelle tentative d'authentification
     }
     
     handler.next(err);

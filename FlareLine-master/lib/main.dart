@@ -27,6 +27,7 @@ void main() async {
 
   final secureStorage = getIt<SecureStorageService>();
   await secureStorage.deleteTokens();
+  await secureStorage.deleteDocuSignTokens();
   print(' ✅ TEST: Tokens supprimés avec succès');
 
   // Configuration pour les appareils mobiles
