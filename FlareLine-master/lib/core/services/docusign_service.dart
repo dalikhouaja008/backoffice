@@ -6,31 +6,23 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:flareline/core/config/api_config.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
+import 'package:flareline/core/services/secure_storage.dart';
+import 'package:flareline/core/injection/injection.dart';
+import 'package:logger/logger.dart';
 
 class DocuSignService {
   String? accessToken;
+  final SecureStorageService _secureStorage;
+  final Logger _logger;
 
-  // Génération d'un code verifier aléatoire
-  String _generateCodeVerifier() {
-    final random = Random.secure();
-    final values = List<int>.generate(48, (_) => random.nextInt(256));
-    return base64Url
-        .encode(values)
-        .replaceAll('=', '')
-        .replaceAll('+', '-')
-        .replaceAll('/', '_');
-  }
+  // Clés pour le stockage sécurisé
+  static const String _tokenKey = 'docusign_token';
+  static const String _tokenExpiryKey = 'docusign_token_expiry';
+  static const String _codeVerifierKey = 'docusign_code_verifier';
 
-  // Génération d'un code challenge à partir du code verifier
-  String _generateCodeChallenge(String codeVerifier) {
-    final bytes = utf8.encode(codeVerifier);
-    final digest = sha256.convert(bytes);
-    return base64Url
-        .encode(digest.bytes)
-        .replaceAll('=', '')
-        .replaceAll('+', '-')
-        .replaceAll('/', '_');
-  }
+  DocuSignService({SecureStorageService? secureStorage, Logger? logger})
+      : _secureStorage = secureStorage ?? getIt<SecureStorageService>(),
+        _logger = logger ?? getIt<Logger>();
 
   void initiateAuthentication() {
     try {
@@ -66,13 +58,14 @@ class DocuSignService {
     }
   }
 
-  void clearToken() {
+  Future<void> clearToken() async {
     accessToken = null;
     try {
-      html.window.localStorage.remove('docusign_token');
-      html.window.localStorage.remove('docusign_token_expiry');
-      html.window.localStorage.remove(
-          'docusign_code_verifier'); // Nettoyer également le code verifier
+      await Future.wait([
+        _secureStorage.delete(key: _tokenKey),
+        _secureStorage.delete(key: _tokenExpiryKey),
+        _secureStorage.delete(key: _codeVerifierKey),
+      ]);
       print("Token DocuSign effacé");
     } catch (e) {
       print("Erreur lors de l'effacement du token: $e");
@@ -83,9 +76,9 @@ class DocuSignService {
   Future<bool> processAuthCode(String code) async {
     try {
       // Récupérer le code_verifier stocké
-      final codeVerifier = html.window.localStorage['docusign_code_verifier'];
+      final codeVerifier = await _secureStorage.read(key: _codeVerifierKey);
       if (codeVerifier == null) {
-        print("ERREUR: Code verifier non trouvé dans localStorage");
+        print("ERREUR: Code verifier non trouvé dans le stockage sécurisé");
         return false;
       }
 
@@ -113,12 +106,14 @@ class DocuSignService {
             .millisecondsSinceEpoch;
 
         // Stocker le token et sa date d'expiration
-        html.window.localStorage['docusign_token'] = accessToken!;
-        html.window.localStorage['docusign_token_expiry'] =
-            expiryTime.toString();
+        await Future.wait([
+          _secureStorage.write(key: _tokenKey, value: accessToken!),
+          _secureStorage.write(
+              key: _tokenExpiryKey, value: expiryTime.toString()),
+        ]);
 
         // Nettoyer le code_verifier une fois utilisé
-        html.window.localStorage.remove('docusign_code_verifier');
+        await _secureStorage.delete(key: _codeVerifierKey);
 
         print('Authentification DocuSign réussie avec PKCE');
         return true;
@@ -133,10 +128,10 @@ class DocuSignService {
   }
 
   // Le reste de la classe reste inchangé
-  // Vérifier si nous avons un token dans le stockage local et s'il est valide
-  bool checkExistingAuth() {
-    final storedToken = html.window.localStorage['docusign_token'];
-    final expiryTimeStr = html.window.localStorage['docusign_token_expiry'];
+  // Vérifier si nous avons un token dans le stockage sécurisé et s'il est valide
+  Future<bool> checkExistingAuth() async {
+    final storedToken = await _secureStorage.read(key: _tokenKey);
+    final expiryTimeStr = await _secureStorage.read(key: _tokenExpiryKey);
 
     if (storedToken != null &&
         storedToken.isNotEmpty &&
@@ -150,8 +145,10 @@ class DocuSignService {
           return true;
         } else {
           // Token expiré, supprimer
-          html.window.localStorage.remove('docusign_token');
-          html.window.localStorage.remove('docusign_token_expiry');
+          await Future.wait([
+            _secureStorage.delete(key: _tokenKey),
+            _secureStorage.delete(key: _tokenExpiryKey),
+          ]);
         }
       } catch (e) {
         print('Erreur lors de la vérification du token: $e');
@@ -161,18 +158,19 @@ class DocuSignService {
   }
 
   // Déconnexion - effacer les tokens
-  void logout() {
+  Future<void> logout() async {
     accessToken = null;
-    html.window.localStorage.remove('docusign_token');
-    html.window.localStorage.remove('docusign_token_expiry');
-    html.window.localStorage.remove(
-        'docusign_code_verifier'); // Nettoyer également le code verifier
+    await Future.wait([
+      _secureStorage.delete(key: _tokenKey),
+      _secureStorage.delete(key: _tokenExpiryKey),
+      _secureStorage.delete(key: _codeVerifierKey),
+    ]);
   }
 
   // Vérification du statut d'une enveloppe
   Future<Map<String, dynamic>?> checkEnvelopeStatus(String envelopeId) async {
     if (accessToken == null) {
-      final hasToken = checkExistingAuth();
+      final hasToken = await checkExistingAuth();
       if (!hasToken) return null;
     }
 
@@ -209,7 +207,7 @@ class DocuSignService {
   // Récupération du document signé
   Future<String?> getSignedDocument(String envelopeId) async {
     if (accessToken == null) {
-      final hasToken = checkExistingAuth();
+      final hasToken = await checkExistingAuth();
       if (!hasToken) return null;
     }
 
@@ -251,7 +249,7 @@ class DocuSignService {
   Future<bool> addDocumentToEnvelope(String envelopeId, String documentBase64,
       String documentName, String documentId) async {
     if (accessToken == null) {
-      final hasToken = checkExistingAuth();
+      final hasToken = await checkExistingAuth();
       if (!hasToken) return false;
     }
 
@@ -292,7 +290,7 @@ class DocuSignService {
   // Annulation d'une enveloppe
   Future<bool> voidEnvelope(String envelopeId, String voidReason) async {
     if (accessToken == null) {
-      final hasToken = checkExistingAuth();
+      final hasToken = await checkExistingAuth();
       if (!hasToken) return false;
     }
 
@@ -325,15 +323,15 @@ class DocuSignService {
     }
   }
 
-  void setAccessToken(String token, {int? expiresIn}) {
+  Future<void> setAccessToken(String token, {int? expiresIn}) async {
     try {
       // Assigner le token à la variable du service
       accessToken = token;
       print(
           "Token d'accès défini: ${token.substring(0, min(10, token.length))}...");
 
-      // Stocker également dans localStorage pour la persistance
-      html.window.localStorage['docusign_token'] = token;
+      // Stocker également dans le stockage sécurisé pour la persistance
+      await _secureStorage.write(key: _tokenKey, value: token);
 
       // Gérer l'expiration
       int expiryTime;
@@ -344,14 +342,14 @@ class DocuSignService {
         expiryTime = DateTime.now().millisecondsSinceEpoch + (3600 * 1000);
 
         // Essayer de lire l'expiration existante
-        final existingExpiry =
-            html.window.localStorage['docusign_token_expiry'];
+        final existingExpiry = await _secureStorage.read(key: _tokenExpiryKey);
         if (existingExpiry != null) {
           expiryTime = int.tryParse(existingExpiry) ?? expiryTime;
         }
       }
 
-      html.window.localStorage['docusign_token_expiry'] = expiryTime.toString();
+      await _secureStorage.write(
+          key: _tokenExpiryKey, value: expiryTime.toString());
 
       print(
           "Token stocké avec expiration: ${DateTime.fromMillisecondsSinceEpoch(expiryTime)}");
@@ -367,7 +365,7 @@ class DocuSignService {
       String status = '',
       int count = 100}) async {
     if (accessToken == null) {
-      final hasToken = checkExistingAuth();
+      final hasToken = await checkExistingAuth();
       if (!hasToken) return null;
     }
 
@@ -399,8 +397,8 @@ class DocuSignService {
   }
 
   // Vérification de l'état de l'authentification (utile pour l'UI)
-  bool get isAuthenticated {
-    return accessToken != null || checkExistingAuth();
+  Future<bool> get isAuthenticated async {
+    return accessToken != null || await checkExistingAuth();
   }
 
   Future<Map<String, dynamic>> createEnvelopeForEmbeddedSigning({
@@ -410,7 +408,7 @@ class DocuSignService {
     required String signerName,
   }) async {
     if (accessToken == null) {
-      final hasToken = checkExistingAuth();
+      final hasToken = await checkExistingAuth();
       if (!hasToken) {
         return {'success': false, 'error': 'Non authentifié'};
       }
@@ -482,12 +480,32 @@ class DocuSignService {
           'success': true,
           'envelopeId': envelopeId,
         };
+      }
+      // Gérer spécifiquement les erreurs d'authentification
+      else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Tenter de rafraîchir le token
+        final tokenRefreshed = await handleExpiredToken();
+        if (tokenRefreshed) {
+          // Réessayer la requête avec le nouveau token
+          return createEnvelopeForEmbeddedSigning(
+            land: land,
+            documentBase64: documentBase64,
+            signerEmail: signerEmail,
+            signerName: signerName,
+          );
+        } else {
+          return {
+            'success': false,
+            'error': 'Token expiré, veuillez vous reconnecter à DocuSign'
+          };
+        }
       } else {
         print(
             'Erreur lors de la création de l\'enveloppe: ${response.statusCode} - ${response.body}');
         return {
           'success': false,
-          'error': 'Erreur lors de la création de l\'enveloppe'
+          'error':
+              'Erreur lors de la création de l\'enveloppe: ${response.statusCode}'
         };
       }
     } catch (e) {
@@ -496,15 +514,14 @@ class DocuSignService {
     }
   }
 
-
   Future<Map<String, dynamic>> createEmbeddedSigningUrl({
     required String envelopeId,
     required String signerEmail,
     required String signerName,
   }) async {
-    // Vérifier si nous avons un token d'accès valide
+    // Vérifier si nous avons un token d'accès DocuSign valide
     if (accessToken == null) {
-      final hasToken = checkExistingAuth();
+      final hasToken = await checkExistingAuth();
       if (!hasToken) {
         return {'success': false, 'error': 'Non authentifié à DocuSign'};
       }
@@ -526,13 +543,15 @@ class DocuSignService {
         'returnUrl': returnUrl,
       };
 
-      // En-têtes avec le token DocuSign
+      // Récupération du token d'authentification général de l'application
+      final appToken = await _secureStorage.getAccessToken();
+
+      // En-têtes avec les tokens distincts
       final headers = {
         'Content-Type': 'application/json',
         'Authorization':
-            'Bearer app_token_here', // Remplacer par votre token d'application si nécessaire
-        'X-DocuSign-Token':
-            'Bearer $accessToken', // Le token DocuSign dans l'en-tête spécial
+            'Bearer ${appToken ?? ''}', // Token d'authentification général
+        'X-DocuSign-Token': 'Bearer $accessToken', // Token DocuSign spécifique
       };
 
       print(
@@ -552,8 +571,7 @@ class DocuSignService {
 
         if (responseData['success'] == true) {
           final signingUrl = responseData['signingUrl'];
-          print(
-              'URL de signature obtenue avec succès: $signingUrl...');
+          print('URL de signature obtenue avec succès: $signingUrl...');
 
           return {
             'success': true,
@@ -579,5 +597,75 @@ class DocuSignService {
     }
   }
 
- 
+  Future<bool> refreshToken() async {
+    try {
+      _logger.i('🔄 Tentative de rafraîchissement du token DocuSign');
+
+      // Récupérer le refresh token s'il existe
+      final refreshToken =
+          await _secureStorage.read(key: 'docusign_refresh_token');
+
+      if (refreshToken == null || refreshToken.isEmpty) {
+        _logger.w('⚠️ Aucun refresh token disponible pour DocuSign');
+        return false;
+      }
+
+      // Appel à l'API pour rafraîchir le token
+      final tokenResponse = await http.post(
+        Uri.parse(ApiConfig.docuSignTokenUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'grant_type': 'refresh_token',
+          'refresh_token': refreshToken,
+          'client_id': ApiConfig.docuSignClientId,
+          'client_secret': ApiConfig.docuSignClientSecret,
+        },
+      );
+
+      if (tokenResponse.statusCode == 200) {
+        final tokenData = json.decode(tokenResponse.body);
+        final newAccessToken = tokenData['access_token'];
+        final newRefreshToken = tokenData['refresh_token'] ?? refreshToken;
+        final expiresIn = tokenData['expires_in'] as int? ?? 3600;
+
+        // Mettre à jour les tokens dans le stockage sécurisé
+        await setAccessToken(newAccessToken, expiresIn: expiresIn);
+
+        // Stocker également le nouveau refresh token
+        await _secureStorage.write(
+            key: 'docusign_refresh_token', value: newRefreshToken);
+
+        _logger.i('✅ Token DocuSign rafraîchi avec succès');
+        return true;
+      } else {
+        _logger.e(
+            '❌ Échec du rafraîchissement du token: ${tokenResponse.statusCode} - ${tokenResponse.body}');
+        return false;
+      }
+    } catch (e) {
+      _logger.e('❌ Exception lors du rafraîchissement du token: $e');
+      return false;
+    }
+  }
+
+// Méthode pour gérer le token expiré lors des requêtes
+  Future<bool> handleExpiredToken() async {
+    _logger.w('⚠️ Token DocuSign expiré, tentative de rafraîchissement');
+
+    // Effacer le token actuel
+    accessToken = null;
+
+    // Tenter de rafraîchir le token
+    final refreshed = await refreshToken();
+
+    if (!refreshed) {
+      _logger.w(
+          '🚫 Échec du rafraîchissement du token, redirection vers l\'authentification');
+      // Nettoyer les informations d'authentification expirées
+      await logout();
+      return false;
+    }
+
+    return true;
+  }
 }

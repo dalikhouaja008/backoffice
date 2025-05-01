@@ -25,46 +25,47 @@ class DocuSignRemoteDataSource {
   });
 
   // Méthode pour vérifier si l'utilisateur est connecté à DocuSign
-  Future<bool> isAuthenticated() async {
-    try {
-      final timestamp = DateTime.now().toIso8601String();
-      logger.i('[$timestamp] 🔐 Vérification de l\'authentification DocuSign');
-      
-      // Vérifier si les tokens existent
-      final token = await secureStorage.read(key: _docusignTokenKey);
-      final accountId = await secureStorage.read(key: _docusignAccountIdKey);
-      final expiryStr = await secureStorage.read(key: _docusignExpiryKey);
-
-      // Si les tokens n'existent pas, l'utilisateur n'est pas authentifié
-      if (token == null || accountId == null || expiryStr == null) {
-        logger.i('[$timestamp] 🚫 Authentification DocuSign inactive: tokens manquants');
-        return false;
-      }
-
-      // Convertir la date d'expiration
-      final expiry = DateTime.parse(expiryStr);
-      final now = DateTime.now();
-
-      // Vérifier si le token est expiré
-      if (now.isAfter(expiry)) {
-        logger.i('[$timestamp] 🚫 Token DocuSign expiré le ${expiry.toIso8601String()}');
-        
-        // Supprimer les tokens expirés
-        await _clearDocuSignTokens();
-        return false;
-      }
-
-      logger.i(' ✅ Authentification DocuSign active et valide'
-               '\n└─ Token: ${token.substring(0, 10)}...'
-               '\n└─ Account ID: $accountId'
-               '\n└─ Expiration: $expiryStr');
+Future<bool> isAuthenticated() async {
+  try {
+    // Vérifier d'abord dans le stockage sécurisé
+    final token = await secureStorage.read(key: 'docusign_token');
+    
+    if (token != null && token.isNotEmpty) {
+      logger.i('[${DateTime.now().toIso8601String()}] ✅ Token DocuSign trouvé dans le stockage sécurisé');
       return true;
-    } catch (e) {
-      logger.e(' ❌ Erreur lors de la vérification d\'authentification DocuSign'
-               '\n└─ Error: $e');
-      return false;
     }
+    
+    // Si le token n'est pas dans le stockage sécurisé, vérifier localStorage
+    final localStorageToken = html.window.localStorage['docusign_token'];
+    if (localStorageToken != null && localStorageToken.isNotEmpty) {
+      logger.i('[${DateTime.now().toIso8601String()}] ✅ Token DocuSign trouvé dans localStorage');
+      
+      // Optionnellement, transférer le token vers le stockage sécurisé
+      await secureStorage.write(key: 'docusign_token', value: localStorageToken);
+      
+      // Voir s'il y a un ID de compte
+      final accountId = html.window.localStorage['docusign_account_id'];
+      if (accountId != null && accountId.isNotEmpty) {
+        await secureStorage.write(key: 'docusign_account_id', value: accountId);
+      }
+      
+      // Voir s'il y a une date d'expiration
+      final expiry = html.window.localStorage['docusign_expiry'];
+      if (expiry != null && expiry.isNotEmpty) {
+        await secureStorage.write(key: 'docusign_expiry', value: expiry);
+      }
+      
+      return true;
+    }
+    
+    logger.i('[${DateTime.now().toIso8601String()}] 🚫 Aucun token DocuSign trouvé');
+    return false;
+  } catch (e) {
+    logger.e('[${DateTime.now().toIso8601String()}] ❌ Erreur lors de la vérification d\'authentification: $e');
+    return false;
   }
+}
+
 
   // Méthode pour effacer les tokens DocuSign
   Future<void> _clearDocuSignTokens() async {
