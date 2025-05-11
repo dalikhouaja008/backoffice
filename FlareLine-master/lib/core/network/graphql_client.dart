@@ -2,16 +2,18 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:universal_html/html.dart' as html;
+import 'package:flareline/core/config/api_config.dart'; // Ajouter cet import
 
 class GraphQLService {
-  static const String _timestamp = '2025-04-13 17:44:34';
+  static String get _timestamp => DateTime.now().toIso8601String();
   static const String _user = 'nesssim';
-  static const String _graphqlEndpoint = 'http://localhost:3000/graphql';
+  
+  // Utiliser directement l'endpoint GraphQL de ApiConfig
+  static String get _graphqlEndpoint => ApiConfig.graphqlEndpoint;
 
   static String _getUserAgent() {
     try {
       if (kIsWeb) {
-        // Utiliser un bloc try-catch spécifique pour l'accès web
         try {
           return html.window.navigator.userAgent;
         } catch (e) {
@@ -48,21 +50,19 @@ class GraphQLService {
   }
 
   static GraphQLClient getClientWithToken(String token) {
-    print('GraphQLService: 🔑 Creating authenticated client'
+    print('[$_timestamp] GraphQLService: 🔑 Creating authenticated client'
           '\n└─ Has token: ${token.isNotEmpty}');
 
     final authLink = AuthLink(
       getToken: () => 'Bearer $token',
     );
 
-
     final httpLink = HttpLink(
       _graphqlEndpoint,
       defaultHeaders: _getDefaultHeaders(),
     );
-
     
-    print('GraphQLService: 🔗 Setting up GraphQL link'
+    print('[$_timestamp] GraphQLService: 🔗 Setting up GraphQL link'
           '\n└─ Authorization: Bearer ${token.length > 10 ? "${token.substring(0, 10)}..." : token}'
           '\n└─ Endpoint: $_graphqlEndpoint');
 
@@ -83,15 +83,13 @@ class GraphQLService {
   }
 
   static GraphQLClient get client {
-
-    print('GraphQLService: 🌐 Creating unauthenticated client'
+    print('[$_timestamp] GraphQLService: 🌐 Creating unauthenticated client'
           '\n└─ Endpoint: $_graphqlEndpoint');
 
     final httpLink = HttpLink(
       _graphqlEndpoint,
       defaultHeaders: _getDefaultHeaders(),
     );
-
 
     return GraphQLClient(
       link: httpLink,

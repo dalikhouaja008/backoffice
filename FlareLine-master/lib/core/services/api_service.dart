@@ -1,8 +1,7 @@
-import 'dart:io';
 import 'package:flareline/core/services/secure_storage.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 
-//un service pour gérer les headers HTTP
+
 class ApiService {
   final SecureStorageService _secureStorage;
   

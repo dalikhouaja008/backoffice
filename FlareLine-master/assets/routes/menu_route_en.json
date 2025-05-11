@@ -1,145 +1,172 @@
 [
   {
     "groupName": "Gestion",
+    "roles": ["admin", "geometre", "expert_juridique"],
     "menuList": [
       {
         "icon": "assets/sidebar/map.svg",
         "menuName": "Géomètre",
-        "path": "/geometre"
+        "path": "/geometre",
+        "roles": ["admin", "geometre"]
       },
       {
         "icon": "assets/sidebar/gavel.svg",
         "menuName": "Expert Juridique",
-        "path": "/expert_juridique"
+        "path": "/expert_juridique",
+        "roles": ["admin", "expert_juridique"]
       }
     ]
   },
   {
     "groupName": "Project",
+    "roles": ["admin", "project_manager"],
     "menuList": [
       {
         "icon": "assets/sidebar/tools.svg",
         "menuName": "Project",
-        "path": "/tools"
+        "path": "/tools",
+        "roles": ["admin", "project_manager"]
       }
     ]
   },
   {
     "groupName": "Widgets",
+    "roles": ["admin"],
     "menuList": [
       {
         "icon": "assets/sidebar/dashboard.svg",
         "menuName": "Dashboard",
-        "path": "/"
+        "path": "/",
+        "roles": ["admin"]
       },
       {
         "icon": "assets/sidebar/calendar.svg",
         "menuName": "Calendar",
-        "path": "/calendar"
-      },
-
-      {
-        "icon": "assets/sidebar/invoice.svg",
-        "menuName": "Invoice",
-        "path": "/invoice"
+        "path": "/calendar",
+        "roles": ["admin"]
       },
       {
         "icon": "assets/sidebar/invoice.svg",
         "menuName": "Invoice",
-        "path": "/invoice"
+        "path": "/invoice",
+        "roles": ["admin"]
+      },
+      {
+        "icon": "assets/sidebar/invoice.svg",
+        "menuName": "Invoice",
+        "path": "/invoice",
+        "roles": ["admin"]
       },
       {
         "icon": "assets/sidebar/profile.svg",
         "menuName": "Profile",
-        "path": "/profile"
+        "path": "/profile",
+        "roles": ["admin", "geometre", "expert_juridique", "project_manager"]
       },
       {
         "icon": "assets/sidebar/forms.svg",
         "menuName": "Forms",
+        "roles": ["admin"],
         "childList": [
           {
             "menuName": "FormElements",
-            "path": "/formElements"
+            "path": "/formElements",
+            "roles": ["admin"]
           },
           {
             "menuName": "FormLayout",
-            "path": "/formLayout"
+            "path": "/formLayout",
+            "roles": ["admin"]
           }
         ]
       },
       {
         "icon": "assets/sidebar/table.svg",
         "menuName": "Tables",
+        "roles": ["admin"],
         "childList": [
           {
             "menuName": "BasicTable",
-            "path": "/tables"
+            "path": "/tables",
+            "roles": ["admin"]
           },
           {
             "menuName": "Contacts",
-            "path": "/contacts"
+            "path": "/contacts",
+            "roles": ["admin"]
           }
         ]
       },
       {
         "icon": "assets/sidebar/setting.svg",
         "menuName": "Settings",
-        "path": "/settings"
+        "path": "/settings",
+        "roles": ["admin"]
       },
       {
         "icon": "assets/sidebar/chart.svg",
         "menuName": "Chart",
+        "roles": ["admin"],
         "childList": [
           {
             "menuName": "BasicChart",
-            "path": "/basicChart"
+            "path": "/basicChart",
+            "roles": ["admin"]
           }
         ]
       },
       {
         "icon": "assets/sidebar/ui.svg",
         "menuName": "UIElements",
+        "roles": ["admin"],
         "childList": [
           {
             "menuName": "Alerts",
-            "path": "/alerts"
+            "path": "/alerts",
+            "roles": ["admin"]
           },
           {
             "menuName": "Buttons",
-            "path": "/buttons"
+            "path": "/buttons",
+            "roles": ["admin"]
           },
           {
             "menuName": "Toast",
-            "path": "/toast"
+            "path": "/toast",
+            "roles": ["admin"]
           },
           {
             "menuName": "Modal",
-            "path": "/modal"
+            "path": "/modal",
+            "roles": ["admin"]
           }
         ]
       },
       {
         "icon": "assets/sidebar/auth.svg",
         "menuName": "Auth",
+        "roles": ["admin"],
         "childList": [
           {
             "menuName": "SignIn",
             "path": "/signIn",
-            "blank": true
+            "blank": true,
+            "roles": ["admin"]
           },
           {
             "menuName": "SignUp",
             "path": "/signUp",
-            "blank": true
+            "blank": true,
+            "roles": ["admin"]
           },
           {
             "menuName": "ResetPassword",
             "path": "/resetPwd",
-            "blank": true
+            "blank": true,
+            "roles": ["admin"]
           }
         ]
       }
     ]
   }
- 
 ]
