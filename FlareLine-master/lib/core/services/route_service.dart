@@ -128,9 +128,6 @@ class RouteService {
           backgroundColor: Colors.red,
         ),
       );
-
-      // Optionnel : rediriger vers une page accessible
-      // Navigator.of(context).pushNamed(getInitialRouteForRole(role));
     }
   }
 }
