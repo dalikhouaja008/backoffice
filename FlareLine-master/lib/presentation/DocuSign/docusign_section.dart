@@ -45,7 +45,8 @@ class _DocuSignSectionState extends State<DocuSignSection> {
   html.WindowBase? _authWindow;
   final Logger _logger = getIt<Logger>();
   // Remplacer DocuSignService par DocuSignRemoteDataSource
-  final DocuSignRemoteDataSource _docuSignDataSource = getIt<DocuSignRemoteDataSource>();
+  final DocuSignRemoteDataSource _docuSignDataSource =
+      getIt<DocuSignRemoteDataSource>();
   final SecureStorageService _secureStorage = getIt<SecureStorageService>();
 
   @override
@@ -93,19 +94,20 @@ class _DocuSignSectionState extends State<DocuSignSection> {
           // Vérifier si c'est un token DocuSign
           if (data['type'] == 'DOCUSIGN_TOKEN') {
             final token = data['token'];
-            final expiresIn = data['expiresIn']; 
+            final jwt = data['jwt'];
+            final expiresIn = data['expiresIn'];
             final accountId = data['accountId'];
-            final expiry = data['expiry']; 
+            final expiry = data['expiry'];
 
             if (token != null && token is String) {
-              _logger.i('🔑 Token DocuSign reçu via postMessage');
+              _logger.i('🔑 Token DocuSign et JWT reçus via postMessage');
 
-              // Mettre à jour le token dans le service
-              _docuSignDataSource.setAccessToken(token, expiresIn: expiresIn, accountId: accountId);
+              // Traiter et stocker les tokens reçus
+              _docuSignDataSource.processReceivedToken(token, jwt,
+                  accountId: accountId?.toString(),
+                  expiresIn: expiresIn,
+                  expiryValue: expiry?.toString());
 
-              // Stocker le token dans le stockage sécurisé
-              _storeTokenInSecureStorage(token, accountId, expiresIn, expiryValue: expiry?.toString());
-              
               // Utiliser WidgetsBinding pour sécuriser l'appel à setState
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) {
@@ -128,33 +130,6 @@ class _DocuSignSectionState extends State<DocuSignSection> {
         _logger.e('❌ Erreur lors du traitement du message: $e');
       }
     });
-  }
-
-  void _storeTokenInSecureStorage(
-      String token, String? accountId, int? expiresIn,
-      {String? expiryValue}) {
-    try {
-      // Stocker le token
-      _secureStorage.write(key: 'docusign_token', value: token);
-
-      // Stocker l'ID du compte si disponible
-      if (accountId != null && accountId.isNotEmpty) {
-        _secureStorage.write(key: 'docusign_account_id', value: accountId);
-      }
-
-      // Utiliser l'expiration reçue ou en calculer une nouvelle
-      final expiryToStore = expiryValue ?? 
-          DateTime.now()
-              .add(Duration(seconds: expiresIn ?? 3600))
-              .millisecondsSinceEpoch
-              .toString();
-
-      _secureStorage.write(key: 'docusign_expiry', value: expiryToStore);
-
-      _logger.i('🔒 Token DocuSign stocké dans le stockage sécurisé');
-    } catch (e) {
-      _logger.e('❌ Erreur lors du stockage du token dans le stockage sécurisé: $e');
-    }
   }
 
   void _closeAuthWindowIfOpen() {
@@ -464,59 +439,135 @@ class _DocuSignSectionState extends State<DocuSignSection> {
     }
   }
 
-  Future<void> _initiateSignatureProcess() async {
-    if (widget.land.documentUrls.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Aucun document disponible pour signature'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    try {
-      // Afficher un indicateur de chargement
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Chargement du document en cours...'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-      
-      // Récupérer l'URL du premier document
-      final documentUrl = widget.land.documentUrls.first;
-      
-      // Télécharger le document depuis l'URL
-      final response = await http.get(Uri.parse(documentUrl));
-      
-      if (response.statusCode != 200) {
-        throw Exception('Échec du téléchargement du document: ${response.statusCode}');
-      }
-      
-      // Convertir le document en base64
-      final documentBase64 = base64Encode(response.bodyBytes);
-      
-      _logger.i('📄 Document téléchargé et encodé en base64: ${documentBase64.substring(0, min(50, documentBase64.length))}...');
-      
-      // Créer l'enveloppe DocuSign avec le vrai document
-      context.read<DocuSignBloc>().add(CreateEnvelopeEvent(
-        documentBase64: documentBase64,
-        signerEmail: 'mohamedali.khouaja@esprit.tn', // À remplacer par l'email réel du signataire
-        signerName: 'Nessim', // À remplacer par le nom réel du signataire
-        title: 'Validation juridique - ${widget.land.title}',
-      ));
-    } catch (e) {
-      _logger.e('❌ Erreur lors de la préparation du document: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+ Future<void> _initiateSignatureProcess() async {
+  if (widget.land.documentUrls.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Aucun document disponible pour signature'),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
   }
 
+  try {
+    // Afficher un indicateur de chargement
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Chargement du document en cours...'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+    
+    // Récupérer l'URL du premier document
+    final documentUrl = widget.land.documentUrls.first;
+    
+    _logger.i('📄 URL du document: $documentUrl');
+    
+    // MODIFICATION: Détecter si c'est un fichier IPFS
+    final isIpfsUrl = documentUrl.contains('ipfs') || documentUrl.contains('Qm');
+    
+    // Pour les URL IPFS, on ne peut pas vérifier l'extension, donc on les accepte conditionnellement
+    if (!isIpfsUrl) {
+      // Uniquement pour les URLs non-IPFS, vérifier l'extension
+      final extension = documentUrl.split('.').last.toLowerCase();
+      if (!['pdf', 'doc', 'docx', 'txt'].contains(extension)) {
+        _logger.e('📄 Format de document non pris en charge: $extension');
+        throw Exception('Format de document non pris en charge: $extension. Utilisez PDF, DOC, DOCX ou TXT.');
+      }
+    }
+    
+    // Télécharger le document depuis l'URL
+    final response = await http.get(Uri.parse(documentUrl));
+    
+    if (response.statusCode != 200) {
+      throw Exception('Échec du téléchargement du document: ${response.statusCode}');
+    }
+    
+    // IMPORTANT: Vérifier le type de contenu
+    final contentType = response.headers['content-type'];
+    _logger.i('📄 Type de contenu: $contentType');
+    
+    // Pour les documents IPFS, nous devons déterminer le type en fonction du contenu
+    String documentType = 'pdf';  // Par défaut on suppose que c'est un PDF
+    
+    if (isIpfsUrl) {
+      _logger.i('📄 Document IPFS détecté, détermination du type...');
+      
+      // Vérifier quelques signatures communes pour déterminer le type
+      final bytes = response.bodyBytes;
+      if (bytes.length > 4) {
+        // Signature PDF: '%PDF'
+        if (bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46) {
+          documentType = 'pdf';
+          _logger.i('📄 Signature PDF détectée');
+        } 
+        // Signature DOCX/ZIP: 'PK'
+        else if (bytes[0] == 0x50 && bytes[1] == 0x4B) {
+          documentType = 'docx';
+          _logger.i('📄 Signature DOCX/ZIP détectée');
+        }
+        // Pour d'autres types, on pourrait ajouter plus de vérifications
+        else {
+          // Si on ne peut pas déterminer, on suppose que c'est un PDF
+          _logger.w('📄 Type de document inconnu, traitement par défaut comme PDF');
+        }
+      }
+      
+      _logger.i('📄 Type de document IPFS déterminé: $documentType');
+    }
+    
+    // Convertir le document en base64
+    final documentBase64 = base64Encode(response.bodyBytes);
+    
+    // IMPORTANT: Vérifier que le document est valide
+    _logger.i('📄 Taille du document en octets: ${response.bodyBytes.length}');
+    _logger.i('📄 Taille du document en Base64: ${documentBase64.length}');
+    
+    // Vérifier que nous n'ajoutons pas de caractères indésirables
+    if (documentBase64.contains(' ') || 
+        documentBase64.contains('\n') || 
+        documentBase64.contains('\r') || 
+        documentBase64.contains('\t')) {
+      _logger.e('📄 Le Base64 contient des caractères indésirables, nettoyage nécessaire');
+      
+      // Nettoyer le Base64
+      final cleanBase64 = documentBase64
+          .replaceAll(RegExp(r'\s+'), '')  // Supprimer les espaces, sauts de ligne
+          .replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');  // Garder uniquement les caractères Base64 valides
+      
+      _logger.i('📄 Base64 nettoyé, nouvelle taille: ${cleanBase64.length}');
+      
+      // Utiliser la version nettoyée
+      context.read<DocuSignBloc>().add(CreateEnvelopeEvent(
+        documentBase64: cleanBase64,
+        documentName: isIpfsUrl ? 'document.$documentType' : null, // Ajouter le nom avec extension pour IPFS
+        documentType: documentType, // Ajouter le type détecté
+        signerEmail: 'mohamedali.khouaja@esprit.tn',
+        signerName: 'Nessim',
+        title: 'Validation juridique - ${widget.land.title}',
+      ));
+    } else {
+      // Utiliser directement le Base64
+      context.read<DocuSignBloc>().add(CreateEnvelopeEvent(
+        documentBase64: documentBase64,
+        documentName: isIpfsUrl ? 'document.$documentType' : null, // Ajouter le nom avec extension pour IPFS
+        documentType: documentType, 
+        signerEmail: 'mohamedali.khouaja@esprit.tn',
+        signerName: 'Nessim',
+        title: 'Validation juridique - ${widget.land.title}',
+      ));
+    }
+  } catch (e) {
+    _logger.e('❌ Erreur lors de la préparation du document: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Erreur: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+}
   void _refreshSignatureStatus() {
     if (widget.envelopeId == null) return;
 

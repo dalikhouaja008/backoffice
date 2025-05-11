@@ -55,28 +55,46 @@ class _DocuSignCallbackPageState extends State<DocuSignCallbackPage> {
       if (token != null && token.isNotEmpty) {
         _logger.i('[$timestamp] [$currentUser] ✅ Token reçu directement: ${token.substring(0, 10)}...');
         
-        // Stocker le token et les autres informations
-        await _docuSignDataSource.setAccessToken(token, expiresIn: expiresIn, accountId: accountId);
+        // Stocker directement dans localStorage
+        html.window.localStorage['docusign_token'] = token;
+        _logger.i('[$timestamp] [$currentUser] ✅ Token stocké dans localStorage');
         
-        // Traiter complètement le token reçu
+        // Si nous avons un JWT, le stocker aussi
+        if (jwt != null && jwt.isNotEmpty) {
+          html.window.localStorage['docusign_jwt'] = jwt;
+          _logger.i('[$timestamp] [$currentUser] ✅ JWT stocké dans localStorage');
+        }
+        
+        // Stocker l'ID du compte si disponible
+        if (accountId != null && accountId.isNotEmpty) {
+          html.window.localStorage['docusign_account_id'] = accountId;
+          _logger.i('[$timestamp] [$currentUser] ✅ Account ID stocké dans localStorage');
+        }
+        
+        // Stocker l'expiration
+        final expiryTime = DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000);
+        html.window.localStorage['docusign_expiry'] = expiryTime.toString();
+        _logger.i('[$timestamp] [$currentUser] ✅ Expiration stockée dans localStorage');
+        
+        // Traiter via DocuSignRemoteDataSource pour maintenir la cohérence
         await _docuSignDataSource.processReceivedToken(
           token, 
+          jwt,
           accountId: accountId, 
           expiresIn: expiresIn,
-          expiryValue: (DateTime.now().millisecondsSinceEpoch + expiresIn * 1000).toString()
+          expiryValue: expiryTime.toString()
         );
         
         setState(() {
           _processing = false;
           _success = true;
           _message = "Authentification DocuSign réussie!";
-          _details += "\nToken stocké avec succès";
+          _details += "\nToken stocké avec succès dans localStorage";
         });
         
         // Attendre un peu avant de rediriger
         await Future.delayed(const Duration(seconds: 2));
         _redirectToMainPage();
-        
       } 
       // Stratégie 2: Utiliser le code d'autorisation si disponible
       else if (code != null && code.isNotEmpty) {

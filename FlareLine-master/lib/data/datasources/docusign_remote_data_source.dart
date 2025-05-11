@@ -4,138 +4,111 @@ import 'dart:typed_data';
 import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flareline/core/config/api_config.dart';
-import 'package:flareline/core/services/secure_storage.dart';
 import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:logger/logger.dart';
 
 class DocuSignRemoteDataSource {
   final Dio dio;
   final Logger logger;
-  final SecureStorageService secureStorage;
 
   // Variable de token en mémoire
   String? accessToken;
 
   // Clés de stockage pour DocuSign
   static const String _docusignTokenKey = 'docusign_token';
+  static const String _docusignJwtKey = 'docusign_jwt';
   static const String _docusignAccountIdKey = 'docusign_account_id';
   static const String _docusignExpiryKey = 'docusign_expiry';
-  static const String _docusignRefreshTokenKey = 'docusign_refresh_token';
 
   // Constructeur avec baseUrl corrigé
   DocuSignRemoteDataSource({
     required this.dio,
     required this.logger,
-    required this.secureStorage,
   });
 
   // URL de base (récupérée dynamiquement de ApiConfig)
   String get baseUrl => ApiConfig.landServiceUrl;
 
-  // Méthode pour vérifier si l'utilisateur est connecté à DocuSign
   Future<bool> isAuthenticated() async {
     try {
       final timestamp = DateTime.now().toIso8601String();
       logger.i('[$timestamp] 🔍 Vérification d\'authentification DocuSign');
 
-      // 1. Vérifier d'abord si on a un token en mémoire
-      if (accessToken != null && accessToken!.isNotEmpty) {
-        logger.i(
-            '[$timestamp] ✓ Token DocuSign trouvé en mémoire: ${accessToken!.substring(0, min(10, accessToken!.length))}...');
+      // 1. Vérifier si on a un JWT dans localStorage
+      final jwt = html.window.localStorage[_docusignJwtKey];
+      if (jwt != null && jwt.isNotEmpty) {
+        logger.i('[$timestamp] ✓ JWT DocuSign trouvé dans localStorage');
 
-        // Vérifier quand même l'expiration
-        final expiryTimeStr = await secureStorage.read(key: _docusignExpiryKey);
+        // Vérifier l'expiration
+        final expiryTimeStr = html.window.localStorage[_docusignExpiryKey];
         if (expiryTimeStr != null) {
           try {
             final expiryTime = int.parse(expiryTimeStr);
             final now = DateTime.now().millisecondsSinceEpoch;
 
-            logger.i(
-                '[$timestamp] 🕐 Expiration du token: ${DateTime.fromMillisecondsSinceEpoch(expiryTime)}');
-            logger.i('[$timestamp] 🕐 Heure actuelle: ${DateTime.now()}');
-
             if (now >= expiryTime) {
-              logger.w('[$timestamp] ⚠️ Token en mémoire expiré');
-              accessToken = null;
-              await _clearDocuSignTokens();
+              logger.w('[$timestamp] ⚠️ Token expiré');
+              await logout(); // Nettoyer les tokens expirés
               return false;
             }
-
-            return true;
           } catch (e) {
-            logger
-                .w('[$timestamp] ⚠️ Erreur de vérification d\'expiration: $e');
-            // On continue car on a quand même un token
+            logger.w(
+                '[$timestamp] ⚠️ Erreur lors du parsing de l\'expiration: $e');
+            // Continuer malgré l'erreur car le token existe
           }
         }
 
+        // Mettre à jour le token en mémoire pour les utilisations futures
+        if (accessToken == null) {
+          final token = html.window.localStorage[_docusignTokenKey];
+          if (token != null && token.isNotEmpty) {
+            accessToken = token;
+          }
+        }
+
+        logger.i('[$timestamp] ✅ Authentification DocuSign valide');
         return true;
       }
 
-      // 2. Sinon, vérifier dans le stockage sécurisé
-      final storedToken = await secureStorage.read(key: _docusignTokenKey);
+      // 2. Vérifier aussi le token brut (pour compatibilité)
+      final token = html.window.localStorage[_docusignTokenKey];
+      if (token != null && token.isNotEmpty) {
+        logger.i('[$timestamp] ✓ Token DocuSign brut trouvé dans localStorage');
 
-      // AJOUT DE LOGS: Afficher le contenu du token stocké
-      if (storedToken == null || storedToken.isEmpty) {
-        logger.e(
-            '[$timestamp] ❌ Aucun token DocuSign trouvé dans le stockage sécurisé');
-        return false;
-      } else {
-        logger.i(
-            '[$timestamp] ✓ Token DocuSign trouvé dans le stockage sécurisé: ${storedToken.substring(0, min(10, storedToken.length))}...');
-        logger.i(
-            '[$timestamp] 📋 Longueur du token: ${storedToken.length} caractères');
-      }
+        // Mettre à jour le token en mémoire
+        accessToken = token;
 
-      // 3. Vérifier l'expiration
-      final expiryTimeStr = await secureStorage.read(key: _docusignExpiryKey);
-      if (expiryTimeStr != null) {
-        try {
-          // AJOUT: Afficher la valeur brute
-          logger.i(
-              '[$timestamp] 📋 Valeur brute de l\'expiration: $expiryTimeStr');
+        // Vérifier l'expiration comme ci-dessus
+        final expiryTimeStr = html.window.localStorage[_docusignExpiryKey];
+        if (expiryTimeStr != null) {
+          try {
+            final expiryTime = int.parse(expiryTimeStr);
+            final now = DateTime.now().millisecondsSinceEpoch;
 
-          final expiryTime = int.parse(expiryTimeStr);
-          final now = DateTime.now().millisecondsSinceEpoch;
-
-          logger.i(
-              '[$timestamp] 🕒 Expiration convertie: ${DateTime.fromMillisecondsSinceEpoch(expiryTime)}');
-          logger.i('[$timestamp] 🕒 Maintenant: ${DateTime.now()}');
-
-          if (now >= expiryTime) {
-            logger.w('[$timestamp] ⚠️ Token expiré');
-            await _clearDocuSignTokens();
-            return false;
+            if (now >= expiryTime) {
+              logger.w('[$timestamp] ⚠️ Token expiré');
+              await logout();
+              return false;
+            }
+          } catch (e) {
+            logger.w(
+                '[$timestamp] ⚠️ Erreur lors du parsing de l\'expiration: $e');
           }
-        } catch (e) {
-          logger
-              .w('[$timestamp] ⚠️ Erreur lors du parsing de l\'expiration: $e');
-          // Continuer malgré l'erreur car le token existe
         }
-      } else {
-        logger.w('[$timestamp] ⚠️ Pas de date d\'expiration trouvée');
+
+        logger.i(
+            '[$timestamp] ✅ Authentification DocuSign valide (via token brut)');
+        return true;
       }
 
-      // 4. Stocker le token en mémoire pour les utilisations futures
-      accessToken = storedToken;
-
-      // AJOUT: Récupérer l'ID du compte pour le log
-      final accountId = await secureStorage.read(key: _docusignAccountIdKey);
-      if (accountId != null) {
-        logger.i('[$timestamp] 📋 ID de compte DocuSign: $accountId');
-      } else {
-        logger.w('[$timestamp] ⚠️ Pas d\'ID de compte DocuSign trouvé');
-      }
-
-      logger.i('[$timestamp] ✅ Authentification DocuSign valide');
-      return true;
+      logger.e('[$timestamp] ❌ Aucun token DocuSign trouvé');
+      return false;
     } catch (e) {
       logger.e('❌ Exception lors de la vérification d\'authentification: $e');
       return false;
     }
   }
 
-  // Méthode pour initialiser l'authentification DocuSign
   void initiateAuthentication() {
     try {
       final timestamp = DateTime.now().toIso8601String();
@@ -170,19 +143,19 @@ class DocuSignRemoteDataSource {
     try {
       final timestamp = DateTime.now().toIso8601String();
 
-      // Stocker le token dans la variable de classe
+      // Stocker le token en mémoire pour performance
       accessToken = token;
       logger.i(
           '[$timestamp] 🔐 Token défini en mémoire: ${token.substring(0, min(10, token.length))}...');
 
-      // Stocker dans le stockage sécurisé
-      await secureStorage.write(key: _docusignTokenKey, value: token);
+      // Stocker dans localStorage
+      html.window.localStorage[_docusignTokenKey] = token;
       logger.i(
-          '[$timestamp] 🔐 Token stocké dans SecureStorage (longueur: ${token.length})');
+          '[$timestamp] 🔐 Token stocké dans localStorage (longueur: ${token.length})');
 
       // Stocker l'ID du compte si fourni
       if (accountId != null && accountId.isNotEmpty) {
-        await secureStorage.write(key: _docusignAccountIdKey, value: accountId);
+        html.window.localStorage[_docusignAccountIdKey] = accountId;
         logger.i('[$timestamp] 🔐 ID de compte stocké: $accountId');
       }
 
@@ -195,52 +168,43 @@ class DocuSignRemoteDataSource {
         expiryTime = DateTime.now().millisecondsSinceEpoch + (3600 * 1000);
       }
 
-      await secureStorage.write(
-          key: _docusignExpiryKey, value: expiryTime.toString());
+      html.window.localStorage[_docusignExpiryKey] = expiryTime.toString();
       logger.i(
           '[$timestamp] 🔐 Expiration stockée: ${DateTime.fromMillisecondsSinceEpoch(expiryTime)}');
       logger.i('[$timestamp] 🔐 Valeur brute d\'expiration: $expiryTime');
 
-      // AJOUT: Vérifier immédiatement que le token a bien été stocké
-      final storedToken = await secureStorage.read(key: _docusignTokenKey);
+      // Vérifier que le token a bien été stocké
+      final storedToken = html.window.localStorage[_docusignTokenKey];
       if (storedToken == token) {
         logger
             .i('[$timestamp] ✅ Vérification réussie: le token est bien stocké');
       } else {
         logger.e(
             '[$timestamp] ❌ ERREUR: Le token n\'a pas été correctement stocké!');
-        if (storedToken != null) {
-          logger.e(
-              '[$timestamp] ❌ Token stocké différent, longueur: ${storedToken.length}');
-        } else {
-          logger.e('[$timestamp] ❌ Aucun token n\'a été stocké!');
-        }
       }
     } catch (e) {
       logger.e('❌ Erreur lors de la définition du token: $e');
     }
   }
 
-  // Méthode pour effacer les tokens DocuSign
-  Future<void> _clearDocuSignTokens() async {
+  // Méthode de déconnexion
+  Future<void> logout() async {
     final timestamp = DateTime.now().toIso8601String();
     logger.i('[$timestamp] 🧹 Suppression des tokens DocuSign');
 
     // Effacer la variable en mémoire
     accessToken = null;
 
-    // Effacer le stockage sécurisé
-    await Future.wait([
-      secureStorage.delete(key: _docusignTokenKey),
-      secureStorage.delete(key: _docusignAccountIdKey),
-      secureStorage.delete(key: _docusignExpiryKey),
-      secureStorage.delete(key: _docusignRefreshTokenKey)
-    ]);
+    // Effacer localStorage
+    html.window.localStorage.remove(_docusignTokenKey);
+    html.window.localStorage.remove(_docusignJwtKey);
+    html.window.localStorage.remove(_docusignAccountIdKey);
+    html.window.localStorage.remove(_docusignExpiryKey);
 
     logger.i('[$timestamp] ✅ Tokens DocuSign supprimés avec succès');
 
-    // AJOUT: Vérification que les tokens ont bien été supprimés
-    final tokenCheck = await secureStorage.read(key: _docusignTokenKey);
+    // Vérification que les tokens ont bien été supprimés
+    final tokenCheck = html.window.localStorage[_docusignTokenKey];
     if (tokenCheck == null) {
       logger.i(
           '[$timestamp] ✅ Vérification réussie: le token a bien été supprimé');
@@ -250,196 +214,93 @@ class DocuSignRemoteDataSource {
     }
   }
 
-  // Méthode de déconnexion
-  Future<void> logout() async {
-    await _clearDocuSignTokens();
-    final timestamp = DateTime.now().toIso8601String();
-    logger.i('[$timestamp] 🚪 Déconnexion DocuSign effectuée');
-  }
-
   // Méthode pour traiter le token reçu
-  Future<bool> processReceivedToken(String token,
+  Future<bool> processReceivedToken(String token, String? jwt,
       {String? accountId, int? expiresIn, String? expiryValue}) async {
     try {
       final timestamp = DateTime.now().toIso8601String();
-      logger.i('[$timestamp] 🔄 Traitement du token DocuSign reçu');
+      logger.i('[$timestamp] 🔄 Traitement des tokens DocuSign reçus');
 
-      // AJOUT: Loguer les paramètres reçus
+      // Logger les paramètres reçus
       logger.i(
-          '[$timestamp] 📋 Token reçu (début): ${token.substring(0, min(10, token.length))}...');
+          '[$timestamp] 📋 Token brut reçu (début): ${token.substring(0, min(10, token.length))}...');
       logger.i(
-          '[$timestamp] 📋 Token reçu (longueur): ${token.length} caractères');
-      if (accountId != null)
+          '[$timestamp] 📋 Token brut reçu (longueur): ${token.length} caractères');
+      if (jwt != null) {
+        logger.i(
+            '[$timestamp] 📋 JWT reçu (début): ${jwt.substring(0, min(10, jwt.length))}...');
+        logger
+            .i('[$timestamp] 📋 JWT reçu (longueur): ${jwt.length} caractères');
+      }
+      if (accountId != null) {
         logger.i('[$timestamp] 📋 ID de compte: $accountId');
-      if (expiresIn != null)
+      }
+      if (expiresIn != null) {
         logger.i('[$timestamp] 📋 Expire dans: $expiresIn secondes');
-      if (expiryValue != null)
+      }
+      if (expiryValue != null) {
         logger
             .i('[$timestamp] 📋 Valeur d\'expiration explicite: $expiryValue');
-
-      // Stocker le token
-      await setAccessToken(token, expiresIn: expiresIn, accountId: accountId);
-
-      // Vérifier que le token a bien été stocké
-      final storedToken = await secureStorage.read(key: _docusignTokenKey);
-      if (storedToken != token) {
-        logger.e(
-            '[$timestamp] ❌ ERREUR CRITIQUE: Token mal stocké après processReceivedToken');
-        return false;
       }
 
-      // Si une valeur d'expiration explicite est fournie
+      // IMPORTANT: Nettoyer le token et le JWT
+      final cleanToken = _cleanToken(token);
+      String? cleanJwt = jwt != null ? _cleanToken(jwt) : null;
+
+      // Stocker le token brut
+      html.window.localStorage[_docusignTokenKey] = cleanToken;
+      accessToken = cleanToken; // Mettre à jour aussi en mémoire
+      logger.i('[$timestamp] ✅ Token brut stocké dans localStorage');
+
+      // Stocker le JWT si disponible
+      if (cleanJwt != null && cleanJwt.isNotEmpty) {
+        html.window.localStorage[_docusignJwtKey] = cleanJwt;
+        logger.i('[$timestamp] ✅ JWT stocké dans localStorage');
+      }
+
+      // Stocker l'ID du compte si disponible
+      if (accountId != null && accountId.isNotEmpty) {
+        html.window.localStorage[_docusignAccountIdKey] = accountId;
+        logger.i('[$timestamp] ✅ ID de compte stocké dans localStorage');
+      }
+
+      // Gérer l'expiration
       if (expiryValue != null) {
         try {
-          final expiryTime = int.parse(expiryValue);
-          await secureStorage.write(
-              key: _docusignExpiryKey, value: expiryValue);
+          html.window.localStorage[_docusignExpiryKey] = expiryValue;
           logger.i(
-              '[$timestamp] ✅ Expiration explicite stockée: ${DateTime.fromMillisecondsSinceEpoch(expiryTime)}');
+              '[$timestamp] ✅ Expiration explicite stockée dans localStorage');
         } catch (e) {
           logger.w('[$timestamp] ⚠️ Erreur avec l\'expiration explicite: $e');
         }
+      } else if (expiresIn != null) {
+        final expiryTime =
+            DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000);
+        html.window.localStorage[_docusignExpiryKey] = expiryTime.toString();
+        logger
+            .i('[$timestamp] ✅ Expiration calculée stockée dans localStorage');
       }
 
-      logger.i('[$timestamp] ✅ Token traité et stocké avec succès');
+      // Vérifier que les données ont bien été stockées
+      logger.i('[$timestamp] ✅ Vérification des données stockées:');
+      logger.i(
+          '[$timestamp] ✅ - Token brut: ${html.window.localStorage[_docusignTokenKey] != null ? "OK" : "Manquant"}');
+      logger.i(
+          '[$timestamp] ✅ - JWT: ${html.window.localStorage[_docusignJwtKey] != null ? "OK" : "Manquant"}');
+      logger.i(
+          '[$timestamp] ✅ - ID de compte: ${html.window.localStorage[_docusignAccountIdKey] != null ? "OK" : "Manquant"}');
+      logger.i(
+          '[$timestamp] ✅ - Expiration: ${html.window.localStorage[_docusignExpiryKey] != null ? "OK" : "Manquant"}');
+
+      logger.i('[$timestamp] ✅ Tokens traités et stockés avec succès');
       return true;
     } catch (e) {
-      logger.e(' ❌ Erreur lors du traitement du token: $e');
+      logger.e('❌ Erreur lors du traitement du token: $e');
       return false;
     }
   }
 
   // Méthode pour créer une enveloppe pour signature embarquée
-  Future<Map<String, dynamic>> createEmbeddedEnvelope({
-    required String documentBase64,
-    required String signerEmail,
-    required String signerName,
-    required String title,
-  }) async {
-    try {
-      final timestamp = DateTime.now().toIso8601String();
-      logger.i('[$timestamp] 📝 Création d\'une enveloppe DocuSign'
-          '\n└─ Signataire: $signerName ($signerEmail)'
-          '\n└─ Titre: $title'
-          '\n└─ Taille du document: ${documentBase64.length} caractères');
-
-      // 1. Vérifier si l'authentification est valide
-      if (!await isAuthenticated()) {
-        logger.e('[$timestamp] ❌ Non authentifié à DocuSign');
-        throw Exception(
-            'Non authentifié à DocuSign. Veuillez vous reconnecter.');
-      }
-
-      // 2. Récupérer les tokens
-
-      final docusignToken = await secureStorage.read(key: _docusignTokenKey);
-      if (docusignToken == null || docusignToken.isEmpty) {
-        logger.e('[$timestamp] ❌ Token DocuSign introuvable dans le stockage');
-        throw Exception('Token DocuSign introuvable');
-      }
-
-      final cleanToken = _cleanToken(docusignToken);
-      logger.i(
-          '[$timestamp] 🔧 Token DocuSign nettoyé, longueur: ${cleanToken.length}');
-
-      // AJOUT: Logger le contenu réel du token
-      logger.i(
-          '[$timestamp] 📋 Token DocuSign récupéré (début): ${docusignToken.substring(0, min(20, docusignToken.length))}...');
-      logger.i(
-          '[$timestamp] 📋 Token DocuSign récupéré (longueur): ${docusignToken.length} caractères');
-      logger.i(
-          '[$timestamp] 📋 Token DocuSign récupéré (fin): ...${docusignToken.substring(max(0, docusignToken.length - 20))}');
-
-      // Récupérer le token d'authentification de l'application
-      final authToken = await secureStorage.getAccessToken();
-      if (authToken == null || authToken.isEmpty) {
-        logger.e('[$timestamp] ❌ Token d\'authentification introuvable');
-        throw Exception('Token d\'authentification introuvable');
-      }
-
-      logger.i(
-          '[$timestamp] 📋 Token d\'authentification (début): ${authToken.substring(0, min(20, authToken.length))}...');
-
-      // Configuration de la requête
-      logger.i('[$timestamp] 🔧 Préparation des en-têtes pour la requête');
-      final options = Options(
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-          'X-DocuSign-Token': 'Bearer $docusignToken',
-        },
-      );
-
-      // AJOUT: Logger les en-têtes complets pour debugging
-      logger.i('[$timestamp] 📋 En-têtes complets:');
-      logger.i('[$timestamp] 📋   Content-Type: application/json');
-      logger.i(
-          '[$timestamp] 📋   Authorization: Bearer ${authToken.substring(0, min(10, authToken.length))}...');
-      logger.i(
-          '[$timestamp] 📋   X-DocuSign-Token: Bearer ${docusignToken.substring(0, min(10, docusignToken.length))}...');
-
-      // Données à envoyer
-      final data = {
-        'documentBase64': documentBase64,
-        'signerEmail': signerEmail,
-        'signerName': signerName,
-        'title': title,
-      };
-
-      logger.i(
-          '[$timestamp] 📤 Envoi de la requête à $baseUrl/docusign/create-embedded-envelope');
-
-      // Appel à l'API
-      final response = await dio
-          .post(
-            '$baseUrl/docusign/create-embedded-envelope',
-            options: options,
-            data: data,
-          )
-          .timeout(const Duration(seconds: 30));
-
-      logger.i('[$timestamp] 📥 Réponse reçue: ${response.statusCode}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Vérifier le contenu de la réponse
-        if (response.data is Map && response.data['success'] == true) {
-          logger.i('[$timestamp] ✅ Enveloppe créée avec succès');
-          return response.data;
-        } else {
-          logger.e(
-              '[$timestamp] ❌ Format de réponse inattendu: ${response.data}');
-          throw Exception('Format de réponse inattendu: ${response.data}');
-        }
-      } else {
-        logger.e('[$timestamp] ❌ Erreur HTTP: ${response.statusCode}');
-        throw Exception('Erreur HTTP ${response.statusCode}: ${response.data}');
-      }
-    } on DioException catch (e) {
-      final timestamp = DateTime.now().toIso8601String();
-
-      // Vérifier si l'erreur est liée à l'authentification
-      if (e.response?.statusCode == 401) {
-        logger.e('[$timestamp] 🔒 Erreur d\'authentification DocuSign (401)');
-        logger.e('[$timestamp] 🔒 Réponse du serveur: ${e.response?.data}');
-
-        // Nettoyage des tokens
-        await _clearDocuSignTokens();
-
-        throw Exception(
-            'Token DocuSign expiré ou invalide. Veuillez vous reconnecter.');
-      }
-
-      logger.e('[$timestamp] ❌ Erreur Dio: ${e.message}'
-          '\n└─ Statut: ${e.response?.statusCode}'
-          '\n└─ Réponse: ${e.response?.data}');
-
-      throw Exception('Erreur réseau: ${e.message}');
-    } catch (e) {
-      final timestamp = DateTime.now().toIso8601String();
-      logger.e('[$timestamp] ❌ Exception: $e');
-      rethrow;
-    }
-  }
 
   String _cleanToken(String token) {
     return token
@@ -469,17 +330,27 @@ class DocuSignRemoteDataSource {
       }
 
       // Récupérer les tokens
-      final docusignToken = await secureStorage.read(key: _docusignTokenKey);
-      if (docusignToken == null) {
-        logger.e('[$timestamp] ❌ Token DocuSign introuvable');
-        throw Exception('Token DocuSign introuvable');
+      String? tokenToUse;
+      final jwt = html.window.localStorage[_docusignJwtKey];
+      if (jwt != null && jwt.isNotEmpty) {
+        logger.i('[$timestamp] 🔑 Utilisation du JWT depuis localStorage');
+        tokenToUse = jwt;
+      } else {
+        final docusignToken = html.window.localStorage[_docusignTokenKey];
+        if (docusignToken == null || docusignToken.isEmpty) {
+          logger.e('[$timestamp] ❌ Token DocuSign introuvable');
+          throw Exception('Token DocuSign introuvable');
+        }
+        logger
+            .i('[$timestamp] 🔑 Utilisation du token brut depuis localStorage');
+        tokenToUse = docusignToken;
       }
 
       // AJOUT: Logger le token pour debugging
       logger.i(
-          '[$timestamp] 📋 Token DocuSign (début): ${docusignToken.substring(0, min(20, docusignToken.length))}...');
+          '[$timestamp] 📋 Token DocuSign (début): ${tokenToUse.substring(0, min(20, tokenToUse.length))}...');
 
-      final authToken = await secureStorage.getAccessToken();
+      final authToken = await getAccessToken();
 
       // URL de retour par défaut si non fournie
       final finalReturnUrl = returnUrl ??
@@ -490,7 +361,7 @@ class DocuSignRemoteDataSource {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $authToken',
-          'X-DocuSign-Token': 'Bearer $docusignToken',
+          'X-DocuSign-Token': 'Bearer ${_cleanToken(tokenToUse)}',
         },
       );
 
@@ -532,7 +403,7 @@ class DocuSignRemoteDataSource {
       // Vérifier si l'erreur est liée à l'authentification
       if (e.response?.statusCode == 401) {
         logger.e('[$timestamp] 🔒 Erreur d\'authentification DocuSign (401)');
-        await _clearDocuSignTokens();
+        await logout();
         throw Exception(
             'Token DocuSign expiré ou invalide. Veuillez vous reconnecter.');
       }
@@ -562,16 +433,32 @@ class DocuSignRemoteDataSource {
       }
 
       // Récupérer les tokens
-      final docusignToken = await secureStorage.read(key: _docusignTokenKey);
-      final authToken = await secureStorage.getAccessToken();
+      String? tokenToUse;
+      final jwt = html.window.localStorage[_docusignJwtKey];
+      if (jwt != null && jwt.isNotEmpty) {
+        tokenToUse = jwt;
+      } else {
+        tokenToUse = html.window.localStorage[_docusignTokenKey];
+      }
+
+      if (tokenToUse == null || tokenToUse.isEmpty) {
+        logger.e('[$timestamp] ❌ Token DocuSign introuvable');
+        throw Exception('Token DocuSign introuvable');
+      }
+
+      final authToken = await getAccessToken();
+      if (authToken == null || authToken.isEmpty) {
+        logger.e('[$timestamp] ❌ Token d\'authentification introuvable');
+        throw Exception('Token d\'authentification introuvable');
+      }
 
       // Configuration de la requête
       logger.i('🔧 Préparation des en-têtes pour la requête');
       final options = Options(
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $docusignToken',
-          'X-DocuSign-Token': 'Bearer $authToken',
+          'Authorization': 'Bearer $authToken',
+          'X-DocuSign-Token': 'Bearer ${_cleanToken(tokenToUse)}',
         },
       );
 
@@ -596,7 +483,7 @@ class DocuSignRemoteDataSource {
       // Vérifier si l'erreur est liée à l'authentification
       if (e.response?.statusCode == 401) {
         logger.e('[$timestamp] 🔒 Erreur d\'authentification DocuSign (401)');
-        await _clearDocuSignTokens();
+        await logout();
         throw Exception(
             'Token DocuSign expiré ou invalide. Veuillez vous reconnecter.');
       }
@@ -626,14 +513,30 @@ class DocuSignRemoteDataSource {
       }
 
       // Récupérer les tokens
-      final docusignToken = await secureStorage.read(key: _docusignTokenKey);
-      final authToken = await secureStorage.getAccessToken();
+      String? tokenToUse;
+      final jwt = html.window.localStorage[_docusignJwtKey];
+      if (jwt != null && jwt.isNotEmpty) {
+        tokenToUse = jwt;
+      } else {
+        tokenToUse = html.window.localStorage[_docusignTokenKey];
+      }
+
+      if (tokenToUse == null || tokenToUse.isEmpty) {
+        logger.e('[$timestamp] ❌ Token DocuSign introuvable');
+        throw Exception('Token DocuSign introuvable');
+      }
+
+      final authToken = await getAccessToken();
+      if (authToken == null || authToken.isEmpty) {
+        logger.e('[$timestamp] ❌ Token d\'authentification introuvable');
+        throw Exception('Token d\'authentification introuvable');
+      }
 
       // Configuration de la requête
       final options = Options(
         headers: {
           'Authorization': 'Bearer $authToken',
-          'X-DocuSign-Token': 'Bearer $docusignToken',
+          'X-DocuSign-Token': 'Bearer ${_cleanToken(tokenToUse)}',
         },
         responseType: ResponseType.bytes,
       );
@@ -659,7 +562,7 @@ class DocuSignRemoteDataSource {
       // Vérifier si l'erreur est liée à l'authentification
       if (e.response?.statusCode == 401) {
         logger.e('[$timestamp] 🔒 Erreur d\'authentification DocuSign (401)');
-        await _clearDocuSignTokens();
+        await logout();
         throw Exception(
             'Token DocuSign expiré ou invalide. Veuillez vous reconnecter.');
       }
@@ -686,8 +589,12 @@ class DocuSignRemoteDataSource {
             'Non authentifié à DocuSign. Veuillez vous reconnecter.');
       }
 
-      // Récupérer les tokens
-      final authToken = await secureStorage.getAccessToken();
+      // Récupérer le token d'authentification
+      final authToken = await getAccessToken();
+      if (authToken == null || authToken.isEmpty) {
+        logger.e('[$timestamp] ❌ Token d\'authentification introuvable');
+        throw Exception('Token d\'authentification introuvable');
+      }
 
       // Configuration de la requête
       final options = Options(
@@ -722,6 +629,143 @@ class DocuSignRemoteDataSource {
       }
 
       logger.e('[$timestamp] ❌ Erreur Dio: ${e.message}');
+      throw Exception('Erreur réseau: ${e.message}');
+    } catch (e) {
+      final timestamp = DateTime.now().toIso8601String();
+      logger.e('[$timestamp] ❌ Exception: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> createEmbeddedEnvelope({
+    required String documentBase64,
+    required String signerEmail,
+    required String signerName,
+    required String title,
+    String? documentName,
+    String? documentType,
+  }) async {
+    try {
+      final timestamp = DateTime.now().toIso8601String();
+      logger.i('[$timestamp] 📝 Création d\'une enveloppe DocuSign'
+          '\n└─ Signataire: $signerName ($signerEmail)'
+          '\n└─ Titre: $title'
+          '\n└─ Taille du document: ${documentBase64.length} caractères'
+          '\n└─ Nom du document: ${documentName ?? "Auto-détecté"}'
+          '\n└─ Type du document: ${documentType ?? "Auto-détecté"}');
+
+      // 1. Vérifier si l'authentification est valide
+      if (!await isAuthenticated()) {
+        logger.e('[$timestamp] ❌ Non authentifié à DocuSign');
+        throw Exception(
+            'Non authentifié à DocuSign. Veuillez vous reconnecter.');
+      }
+
+      // 2. Récupérer les tokens
+      // Priorité au JWT
+      String? tokenToUse;
+
+      final jwt = html.window.localStorage[_docusignJwtKey];
+      if (jwt != null && jwt.isNotEmpty) {
+        logger.i('[$timestamp] 🔑 Utilisation du JWT depuis localStorage');
+        tokenToUse = jwt;
+      } else {
+        final docusignToken = html.window.localStorage[_docusignTokenKey];
+        if (docusignToken == null || docusignToken.isEmpty) {
+          logger
+              .e('[$timestamp] ❌ Token DocuSign introuvable dans localStorage');
+          throw Exception('Token DocuSign introuvable');
+        }
+        logger
+            .i('[$timestamp] 🔑 Utilisation du token brut depuis localStorage');
+        tokenToUse = docusignToken;
+      }
+
+      final cleanToken = _cleanToken(tokenToUse);
+      logger.i('[$timestamp] 🔧 Token nettoyé, longueur: ${cleanToken.length}');
+
+      // Récupérer le token d'authentification de l'application
+      final authToken = await getAccessToken();
+      if (authToken == null || authToken.isEmpty) {
+        logger.e('[$timestamp] ❌ Token d\'authentification introuvable');
+        throw Exception('Token d\'authentification introuvable');
+      }
+
+      // Configuration de la requête
+      logger.i('[$timestamp] 🔧 Préparation des en-têtes pour la requête');
+      final options = Options(
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken',
+          'X-DocuSign-Token': 'Bearer $cleanToken',
+        },
+      );
+
+      // Données à envoyer
+      final data = {
+        'documentBase64': documentBase64,
+        'signerEmail': signerEmail,
+        'signerName': signerName,
+        'title': title,
+      };
+
+      // NOUVEAU: Ajouter le nom du document si fourni
+      if (documentName != null && documentName.isNotEmpty) {
+        data['documentName'] = documentName;
+      }
+
+      // NOUVEAU: Ajouter le type du document si fourni
+      if (documentType != null && documentType.isNotEmpty) {
+        data['documentType'] = documentType;
+      }
+
+      logger.i(
+          '[$timestamp] 📤 Envoi de la requête à $baseUrl/docusign/create-embedded-envelope');
+
+      // Appel à l'API
+      final response = await dio
+          .post(
+            '$baseUrl/docusign/create-embedded-envelope',
+            options: options,
+            data: data,
+          )
+          .timeout(const Duration(seconds: 30));
+
+      logger.i('[$timestamp] 📥 Réponse reçue: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Vérifier le contenu de la réponse
+        if (response.data is Map && response.data['success'] == true) {
+          logger.i('[$timestamp] ✅ Enveloppe créée avec succès');
+          return response.data;
+        } else {
+          logger.e(
+              '[$timestamp] ❌ Format de réponse inattendu: ${response.data}');
+          throw Exception('Format de réponse inattendu: ${response.data}');
+        }
+      } else {
+        logger.e('[$timestamp] ❌ Erreur HTTP: ${response.statusCode}');
+        throw Exception('Erreur HTTP ${response.statusCode}: ${response.data}');
+      }
+    } on DioException catch (e) {
+      final timestamp = DateTime.now().toIso8601String();
+
+      // Vérifier si l'erreur est liée à l'authentification
+      if (e.response?.statusCode == 401) {
+        logger.e('[$timestamp] 🔒 Erreur d\'authentification DocuSign (401)');
+        logger.e('[$timestamp] 🔒 Réponse du serveur: ${e.response?.data}');
+
+        // Nettoyage des tokens
+        await logout();
+
+        throw Exception(
+            'Token DocuSign expiré ou invalide. Veuillez vous reconnecter.');
+      }
+
+      logger.e('[$timestamp] ❌ Erreur Dio: ${e.message}'
+          '\n└─ Statut: ${e.response?.statusCode}'
+          '\n└─ Réponse: ${e.response?.data}');
+
       throw Exception('Erreur réseau: ${e.message}');
     } catch (e) {
       final timestamp = DateTime.now().toIso8601String();
@@ -776,6 +820,29 @@ class DocuSignRemoteDataSource {
     } catch (e) {
       logger.e(' ❌ Erreur lors de l\'ouverture du document: $e');
       throw Exception('Erreur lors de l\'ouverture du document: $e');
+    }
+  }
+
+  // Méthode pour récupérer un token d'authentification
+  Future<String?> getAccessToken() async {
+    try {
+      // Vérifier d'abord dans localStorage
+      final token = html.window.localStorage['auth_token'];
+
+      if (token != null && token.isNotEmpty) {
+        final timestamp = DateTime.now().toIso8601String();
+        logger.i(
+            '[$timestamp] ✅ Token d\'authentification récupéré depuis localStorage');
+        return token;
+      }
+
+      logger.w(
+          '⚠️ Aucun token d\'authentification trouvé, utilisation d\'un token temporaire pour le développement');
+      return 'temp_dev_token_for_testing';
+    } catch (e) {
+      logger.e(
+          '❌ Erreur lors de la récupération du token d\'authentification: $e');
+      return null;
     }
   }
 }
