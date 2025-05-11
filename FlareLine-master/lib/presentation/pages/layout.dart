@@ -25,11 +25,18 @@ abstract class LayoutWidget extends FlarelineLayoutWidget {
     );
   }
 
-  Widget buildSidebar(BuildContext context, String assetPath, Function(String) onNavigate) {
-    // Utiliser BlocProvider pour fournir le SidebarBloc
+  // IMPORTANT : Remplacer la méthode sideBarWidget par défaut
+  @override
+  Widget sideBarWidget(BuildContext context) {
+    final assetPath = sideBarAsset(context);
     return BlocProvider(
       create: (context) => getIt<SidebarBloc>()..add(LoadSidebar(assetPath)),
-      child: SidebarWidget(onNavigate: onNavigate),
+      child: SidebarWidget(
+        onNavigate: (path) {
+          // Implémentez la navigation ici si nécessaire
+          Navigator.of(context).pushNamed(path);
+        },
+      ),
     );
   }
 

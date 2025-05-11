@@ -2,6 +2,7 @@ import 'package:flareline/core/config/api_config.dart';
 import 'package:flareline/core/network/docusign_interceptor.dart';
 import 'package:flareline/core/network/graphql_client.dart';
 import 'package:flareline/core/services/location_service.dart';
+import 'package:flareline/core/services/menu_service.dart';
 import 'package:flareline/core/services/openroute_service.dart';
 import 'package:flareline/core/services/secure_storage.dart';
 import 'package:flareline/core/services/session_service.dart';
@@ -28,6 +29,7 @@ import 'package:flareline/presentation/bloc/docusign/docusign_bloc.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
 import 'package:flareline/presentation/bloc/geometre/geometre_bloc.dart';
 import 'package:flareline/presentation/bloc/login/login_bloc.dart';
+import 'package:flareline/presentation/bloc/sidebar/sidebar_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
@@ -52,7 +54,7 @@ void setupInjection() {
 
   // Enregistrement du service DocuSign
   getIt.registerLazySingleton<DocuSignService>(() => DocuSignService());
-    // Services externes
+  // Services externes
   getIt.registerLazySingleton<OpenRouteService>(() => OpenRouteService(
         apiKey: '5b3ce3597851110001cf6248c25ce73e7fc44895be99f46b9e13afbd',
       ));
@@ -61,22 +63,29 @@ void setupInjection() {
         logger: getIt<Logger>(),
       ));
 
+  getIt.registerLazySingleton<MenuService>(() => MenuService(
+        sessionService: getIt<SessionService>(),
+        logger: getIt<Logger>(),
+      ));
 
   // Enregistrement des URLs
-  getIt.registerLazySingleton<String>(() => ApiConfig.landServiceUrl, instanceName: 'landServiceUrl');
-  getIt.registerLazySingleton<String>(() => ApiConfig.userManagementUrl, instanceName: 'userManagementUrl');
-  
+  getIt.registerLazySingleton<String>(() => ApiConfig.landServiceUrl,
+      instanceName: 'landServiceUrl');
+  getIt.registerLazySingleton<String>(() => ApiConfig.userManagementUrl,
+      instanceName: 'userManagementUrl');
+
   // Journaliser les URLs configurées
   getIt<Logger>().i('Land Service URL configurée: ${ApiConfig.landServiceUrl}');
-  getIt<Logger>().i('User Management URL configurée: ${ApiConfig.userManagementUrl}');
+  getIt<Logger>()
+      .i('User Management URL configurée: ${ApiConfig.userManagementUrl}');
   getIt<Logger>().i('GraphQL Endpoint configuré: ${ApiConfig.graphqlEndpoint}');
-  
+
   // Configuration de Dio avec AuthInterceptor pour LandService
   getIt.registerLazySingleton(() {
     final dio = Dio();
 
     // Configuration de base avec l'URL
-     dio.options.baseUrl = ApiConfig.landServiceUrl;
+    dio.options.baseUrl = ApiConfig.landServiceUrl;
     dio.options.connectTimeout = const Duration(seconds: 15);
     dio.options.receiveTimeout = const Duration(seconds: 15);
 
@@ -130,9 +139,8 @@ void setupInjection() {
     return dio;
   }, instanceName: 'userManagementDio');
 
-  // CORRECTION ICI: Enregistrer une instance par défaut de Dio
-  // Utiliser l'instance landServiceDio comme instance par défaut
-  getIt.registerLazySingleton<Dio>(() => getIt<Dio>(instanceName: 'landServiceDio'));
+  getIt.registerLazySingleton<Dio>(
+      () => getIt<Dio>(instanceName: 'landServiceDio'));
 
   // Data sources
   getIt.registerLazySingleton<AuthRemoteDataSource>(
@@ -296,6 +304,11 @@ void setupInjection() {
       logger: getIt<Logger>(),
     ),
   );
+  getIt.registerFactory<SidebarBloc>(() => SidebarBloc(
+        menuService: getIt<MenuService>(),
+        sessionService: getIt<SessionService>(),
+        logger: getIt<Logger>(),
+      ));
 
   // Log initialization
   getIt<Logger>().log(
