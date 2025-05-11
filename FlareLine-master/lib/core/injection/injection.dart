@@ -106,8 +106,7 @@ void setupInjection() {
 
   dio.interceptors.add(
     DocuSignInterceptor(
-      logger: getIt<Logger>(),
-      secureStorage: getIt<SecureStorageService>(),  // Ajouter cette ligne
+      logger: getIt<Logger>(), 
     )
   );
 
@@ -172,7 +171,6 @@ void setupInjection() {
       () => DocuSignRemoteDataSource(
             dio: getIt<Dio>(),
             logger: getIt<Logger>(),
-            secureStorage: getIt<SecureStorageService>(),
           ));
 
   // Repositories

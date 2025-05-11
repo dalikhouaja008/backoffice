@@ -72,23 +72,35 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
         _logger.i(
             '[$timestamp] [$currentUser] ✅ Token reçu: ${token.substring(0, math.min(10, token.length))}...');
 
-        // Stocker le token
-        await _docuSignDataSource.setAccessToken(token,
-            expiresIn: expiresIn, accountId: accountId);
+        // Stocker le token dans localStorage directement
+        html.window.localStorage['docusign_token'] = token;
+        
+        // Si nous avons un JWT, le stocker aussi
+        if (jwt != null && jwt.isNotEmpty) {
+          html.window.localStorage['docusign_jwt'] = jwt;
+          _logger.i('[$timestamp] [$currentUser] ✅ JWT stocké dans localStorage');
+        }
+        
+        // Stocker l'ID du compte si disponible
+        if (accountId != null && accountId.isNotEmpty) {
+          html.window.localStorage['docusign_account_id'] = accountId;
+        }
+        
+        // Stocker l'expiration
+        final expiryTime = DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000);
+        html.window.localStorage['docusign_expiry'] = expiryTime.toString();
 
-        // Stocker les données supplémentaires pour la compatibilité
-        await _docuSignDataSource.processReceivedToken(token,
+        // Traiter via DocuSignRemoteDataSource pour maintenir la cohérence
+        await _docuSignDataSource.processReceivedToken(token, jwt,
             accountId: accountId,
             expiresIn: expiresIn,
-            expiryValue:
-                (DateTime.now().millisecondsSinceEpoch + expiresIn * 1000)
-                    .toString());
+            expiryValue: expiryTime.toString());
 
         setState(() {
           _processing = false;
           _success = true;
           _message = "Authentification DocuSign réussie!";
-          _details += "\nToken stocké avec succès";
+          _details += "\nToken stocké avec succès dans localStorage";
         });
       }
       // Cas 2: Code d'autorisation
@@ -102,9 +114,6 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
 
         // Note: DocuSignRemoteDataSource n'a pas de méthode similaire à processAuthCode
         // Un processus alternatif serait nécessaire ici
-
-        // Pour maintenir la compatibilité, on peut utiliser l'API pour échanger le code
-        // Ceci nécessite une implémentation dans DocuSignRemoteDataSource
         throw Exception(
             'La fonctionnalité d\'échange de code d\'autorisation n\'est pas implémentée dans DocuSignRemoteDataSource');
       }

@@ -16,16 +16,17 @@ class CreateEnvelopeEvent extends DocuSignEvent {
   final String signerEmail;
   final String signerName;
   final String title;
-  
+  final String? documentName; 
+  final String? documentType; 
+
   const CreateEnvelopeEvent({
     required this.documentBase64,
     required this.signerEmail,
     required this.signerName,
     required this.title,
+    this.documentName,
+    this.documentType,
   });
-  
-  @override
-  List<Object?> get props => [documentBase64, signerEmail, signerName, title];
 }
 
 class GetSigningUrlEvent extends DocuSignEvent {

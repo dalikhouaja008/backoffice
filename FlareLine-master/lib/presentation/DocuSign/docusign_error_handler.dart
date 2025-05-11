@@ -72,23 +72,41 @@ class _DocuSignErrorHandlerState extends State<DocuSignErrorHandler> {
         _logger.i(
             '[$timestamp] [$currentUser] ✅ Token reçu: ${token.substring(0, math.min(10, token.length))}...');
 
-        // Stocker le token via DocuSignRemoteDataSource
-        await _docuSignDataSource.setAccessToken(token,
-            expiresIn: expiresIn, accountId: accountId);
+        // Stocker directement dans localStorage
+        html.window.localStorage['docusign_token'] = token;
+        _logger.i('[$timestamp] [$currentUser] ✅ Token stocké dans localStorage');
+        
+        // Si nous avons un JWT, le stocker aussi
+        if (jwt != null && jwt.isNotEmpty) {
+          html.window.localStorage['docusign_jwt'] = jwt;
+          _logger.i('[$timestamp] [$currentUser] ✅ JWT stocké dans localStorage');
+        }
+        
+        // Stocker l'ID du compte si disponible
+        if (accountId != null && accountId.isNotEmpty) {
+          html.window.localStorage['docusign_account_id'] = accountId;
+          _logger.i('[$timestamp] [$currentUser] ✅ Account ID stocké dans localStorage');
+        }
+        
+        // Stocker l'expiration
+        final expiryTime = DateTime.now().millisecondsSinceEpoch + (expiresIn * 1000);
+        html.window.localStorage['docusign_expiry'] = expiryTime.toString();
+        _logger.i('[$timestamp] [$currentUser] ✅ Expiration stockée dans localStorage');
 
-        // Utiliser processReceivedToken pour un traitement complet
-        await _docuSignDataSource.processReceivedToken(token,
-            accountId: accountId,
-            expiresIn: expiresIn,
-            expiryValue:
-                (DateTime.now().millisecondsSinceEpoch + expiresIn * 1000)
-                    .toString());
+        // Traiter via DocuSignRemoteDataSource pour maintenir la cohérence
+        await _docuSignDataSource.processReceivedToken(
+          token,
+          jwt,
+          accountId: accountId,
+          expiresIn: expiresIn,
+          expiryValue: expiryTime.toString()
+        );
 
         setState(() {
           _processing = false;
           _success = true;
           _message = "Authentification DocuSign réussie!";
-          _details += "\nToken stocké avec succès";
+          _details += "\nToken stocké avec succès dans localStorage";
           // Stocker une version tronquée du token pour l'affichage
           _token = token.substring(0, math.min(20, token.length)) + "...";
         });
@@ -148,8 +166,14 @@ class _DocuSignErrorHandlerState extends State<DocuSignErrorHandler> {
         // Envoyer un message à la fenêtre parente avec le token
         html.window.opener!.postMessage({
           'type': 'docusign_auth_success',
-          'token':
-              _token, // Utiliser la variable locale au lieu de localStorage
+          'token': _token, // Utiliser la variable locale au lieu de localStorage
+          // Ajouter des informations sur les tokens stockés dans localStorage
+          'stored_tokens': {
+            'token': html.window.localStorage.containsKey('docusign_token'),
+            'jwt': html.window.localStorage.containsKey('docusign_jwt'),
+            'account_id': html.window.localStorage.containsKey('docusign_account_id'),
+            'expiry': html.window.localStorage.containsKey('docusign_expiry'),
+          }
         }, '*');
 
         _logger.i(
