@@ -16,7 +16,10 @@ class DocuSignRepositoryImpl implements DocuSignRepository {
   
   @override
   Future<bool> initiateAuthentication() async {
-    return await remoteDataSource.initiateAuthentication();
+    // La méthode initiateAuthentication ne renvoie plus de Future<bool> mais void
+    // Nous modifions donc ce comportement pour retourner toujours true
+    remoteDataSource.initiateAuthentication();
+    return true;
   }
   
   @override
@@ -106,7 +109,8 @@ class DocuSignRepositoryImpl implements DocuSignRepository {
         envelopeId: envelopeId,
       );
       
-      return documentBytes;
+      // Convertir Uint8List en List<int>
+      return documentBytes.toList();
     } catch (e) {
       debugPrint('Erreur dans le repository lors du téléchargement du document: $e');
       rethrow;
@@ -130,4 +134,23 @@ class DocuSignRepositoryImpl implements DocuSignRepository {
     }
   }
   
+  @override
+  Future<void> updateToken(String token, {int? expiresIn}) async {
+    try {
+      await remoteDataSource.setAccessToken(token, expiresIn: expiresIn);
+    } catch (e) {
+      debugPrint('Erreur dans le repository lors de la mise à jour du token: $e');
+      rethrow;
+    }
+  }
+  
+  @override
+  Future<void> logout() async {
+    try {
+      await remoteDataSource.logout();
+    } catch (e) {
+      debugPrint('Erreur dans le repository lors de la déconnexion: $e');
+      rethrow;
+    }
+  }
 }

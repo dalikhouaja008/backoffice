@@ -87,7 +87,7 @@ class MenuService {
     }
 
     return filteredMenu;
-  }
+  } 
 
   // Vérifier si un utilisateur a accès selon son rôle
   bool _hasAccess(List<dynamic>? roles, String userRole) {

@@ -87,4 +87,6 @@ class UpdateDocuSignTokenEvent extends DocuSignEvent {
   List<Object?> get props => [token, expiresIn];
 }
 
+class DocuSignTokenExpiredEvent extends DocuSignEvent {}
+
 class GetSignatureHistoryEvent extends DocuSignEvent {}
