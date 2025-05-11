@@ -3,13 +3,11 @@ import 'dart:math' as math;
 import 'package:flareline/core/routes/docusign_route_interceptor.dart';
 import 'package:flutter/material.dart';
 import 'package:flareline/core/injection/injection.dart';
-import 'package:flareline/core/services/docusign_service.dart';
-import 'package:flareline/core/theme/global_colors.dart';
 import 'package:flareline/data/datasources/docusign_remote_data_source.dart';
+import 'package:flareline/core/theme/global_colors.dart';
 import 'package:logger/logger.dart';
 
 class DocuSignAuthHandler extends StatefulWidget {
-  // Pas de clé par défaut, pour éviter les conflits
   const DocuSignAuthHandler({super.key});
 
   @override
@@ -24,8 +22,8 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
 
   // Utiliser getIt.get pour éviter les instances potentiellement dupliquées
   Logger get _logger => getIt.get<Logger>();
-  DocuSignService get _docuSignService => getIt.get<DocuSignService>();
-  DocuSignRemoteDataSource get _dataSource =>
+  // Remplacer DocuSignService par DocuSignRemoteDataSource
+  DocuSignRemoteDataSource get _docuSignDataSource =>
       getIt.get<DocuSignRemoteDataSource>();
 
   @override
@@ -74,16 +72,17 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
         _logger.i(
             '[$timestamp] [$currentUser] ✅ Token reçu: ${token.substring(0, math.min(10, token.length))}...');
 
-        // Stocker le token dans le service
-        _docuSignService.setAccessToken(token, expiresIn: expiresIn);
+        // Stocker le token
+        await _docuSignDataSource.setAccessToken(token,
+            expiresIn: expiresIn, accountId: accountId);
 
-        // Stocker les données supplémentaires dans localStorage
-        if (jwt != null) html.window.localStorage['docusign_jwt'] = jwt;
-        if (accountId != null)
-          html.window.localStorage['docusign_account_id'] = accountId;
-
-        // Sauvegarder aussi via le datasource
-        await _dataSource.saveTokenFromLocalStorage();
+        // Stocker les données supplémentaires pour la compatibilité
+        await _docuSignDataSource.processReceivedToken(token,
+            accountId: accountId,
+            expiresIn: expiresIn,
+            expiryValue:
+                (DateTime.now().millisecondsSinceEpoch + expiresIn * 1000)
+                    .toString());
 
         setState(() {
           _processing = false;
@@ -101,23 +100,13 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
           _message = "Échange du code d'autorisation...";
         });
 
-        final success = await _docuSignService.processAuthCode(code);
+        // Note: DocuSignRemoteDataSource n'a pas de méthode similaire à processAuthCode
+        // Un processus alternatif serait nécessaire ici
 
-        if (success) {
-          _logger.i('[$timestamp] [$currentUser] ✅ Code échangé avec succès');
-
-          // Sauvegarder les tokens
-          await _dataSource.saveTokenFromLocalStorage();
-
-          setState(() {
-            _processing = false;
-            _success = true;
-            _message = "Authentification DocuSign réussie!";
-            _details += "\nCode échangé avec succès";
-          });
-        } else {
-          throw Exception('Échec de l\'échange du code d\'autorisation');
-        }
+        // Pour maintenir la compatibilité, on peut utiliser l'API pour échanger le code
+        // Ceci nécessite une implémentation dans DocuSignRemoteDataSource
+        throw Exception(
+            'La fonctionnalité d\'échange de code d\'autorisation n\'est pas implémentée dans DocuSignRemoteDataSource');
       }
       // Cas 3: Aucun paramètre valide
       else {
@@ -159,9 +148,6 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
       _message = "Erreur d'authentification DocuSign";
       _details = "Message: $error\nCode: $code\nÉtat: $state";
     });
-
-    html.window.localStorage['docusign_last_error'] =
-        'Erreur: $error, Code: $code, État: $state, Timestamp: $timestamp, User: $currentUser';
   }
 
   void _redirectToMainPage() {
@@ -170,7 +156,7 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
   }
 
   void _retryAuthentication() {
-    _docuSignService.initiateAuthentication();
+    _docuSignDataSource.initiateAuthentication();
   }
 
   @override
@@ -263,7 +249,8 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
                                 horizontal: 32, vertical: 16),
                             minimumSize: const Size(200, 50),
                           ),
-                          onPressed: () => DocuSignRouteInterceptor.returnToOriginPage(),
+                          onPressed: () =>
+                              DocuSignRouteInterceptor.returnToOriginPage(),
                           child: const Text(
                             'Continuer',
                             style: TextStyle(fontSize: 16),

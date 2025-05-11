@@ -137,10 +137,9 @@ Future<String?> read({required String key}) async {
   }
 
   Future<void> deleteDocuSignTokens() async {
-  final timestamp = '2025-04-28 11:05:15';
-  final currentUser = 'nesssim';
+
   
-  print('[$timestamp] [$currentUser] 🗑️ Suppression des tokens DocuSign...');
+  print('🗑️ Suppression des tokens DocuSign...');
 
   try {
     // Supprimer les tokens DocuSign
@@ -150,9 +149,9 @@ Future<String?> read({required String key}) async {
       _storage.delete(key: 'docusign_expiry'),
     ]);
 
-    print('[$timestamp] [$currentUser] ✅ Tokens DocuSign supprimés avec succès');
+    print('✅ Tokens DocuSign supprimés avec succès');
   } catch (e) {
-    print('[$timestamp] [$currentUser] ❌ Erreur lors de la suppression des tokens DocuSign'
+    print(' ❌ Erreur lors de la suppression des tokens DocuSign'
           '\n└─ Error: $e');
     throw Exception('Échec de la suppression des tokens DocuSign: $e');
   }

@@ -18,4 +18,8 @@ abstract class DocuSignRepository {
   Future<DocuSignEntity> checkEnvelopeStatus(String envelopeId);
   Future<List<int>> downloadSignedDocument(String envelopeId);
   Future<List<DocuSignEntity>> getSignatureHistory();
+  
+  // Nouvelles méthodes pour remplacer DocuSignService
+  Future<void> updateToken(String token, {int? expiresIn});
+  Future<void> logout();
 }

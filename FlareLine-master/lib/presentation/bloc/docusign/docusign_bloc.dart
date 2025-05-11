@@ -1,5 +1,5 @@
 import 'package:flareline/core/injection/injection.dart';
-import 'package:flareline/core/services/docusign_service.dart';
+import 'package:flareline/data/datasources/docusign_remote_data_source.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flareline/domain/use_cases/docusign/check_authentication_use_case.dart';
 import 'package:flareline/domain/use_cases/docusign/initiate_authentication_use_case.dart';
@@ -108,19 +108,15 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
   try {
     emit(EnvelopeCreationInProgress());
     
-    // Récupérer une instance du service DocuSign
-    final docuSignService = getIt<DocuSignService>();
+    // Récupérer une instance du data source DocuSign
+    final docuSignDataSource = getIt<DocuSignRemoteDataSource>();
     
     // Vérifier d'abord si le token est valide
-    final isAuthenticated = await docuSignService.isAuthenticated;
+    final isAuthenticated = await docuSignDataSource.isAuthenticated();
     if (!isAuthenticated) {
-      // Si le token n'est pas valide, essayer de le rafraîchir
-      final refreshed = await docuSignService.refreshToken();
-      if (!refreshed) {
-        logger.e('[$timestamp] 🚫 Session DocuSign expirée, authentification requise');
-        emit(const DocuSignAuthRequired());
-        return;
-      }
+      logger.e('[$timestamp] 🚫 Session DocuSign expirée, authentification requise');
+      emit(const DocuSignAuthRequired());
+      return;
     }
     
     final envelope = await createEnvelope(
@@ -175,7 +171,14 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
       emit(SigningUrlLoaded(signingUrl));
     } catch (e) {
       logger.e('[$timestamp] ❌ Erreur lors de la récupération de l\'URL: $e');
-      emit(SigningUrlError('Erreur lors de la récupération de l\'URL: $e'));
+      
+      // Vérifier si c'est une erreur liée à l'authentification
+      if (e.toString().contains('401') || e.toString().contains('auth')) {
+        logger.e('[$timestamp] 🔑 Token DocuSign expiré ou invalide');
+        emit(const DocuSignAuthRequired());
+      } else {
+        emit(SigningUrlError('Erreur lors de la récupération de l\'URL: $e'));
+      }
     }
   }
 
@@ -197,7 +200,14 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
       emit(EnvelopeStatusLoaded(envelope));
     } catch (e) {
       logger.e('[$timestamp] ❌ Erreur lors de la vérification du statut: $e');
-      emit(EnvelopeStatusError('Erreur lors de la vérification du statut: $e'));
+      
+      // Vérifier si c'est une erreur liée à l'authentification
+      if (e.toString().contains('401') || e.toString().contains('auth')) {
+        logger.e('[$timestamp] 🔑 Token DocuSign expiré ou invalide');
+        emit(const DocuSignAuthRequired());
+      } else {
+        emit(EnvelopeStatusError('Erreur lors de la vérification du statut: $e'));
+      }
     }
   }
 
@@ -219,7 +229,14 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
       emit(DocumentDownloaded(documentBytes));
     } catch (e) {
       logger.e('[$timestamp] ❌ Erreur lors du téléchargement du document: $e');
-      emit(DocumentDownloadError('Erreur lors du téléchargement: $e'));
+      
+      // Vérifier si c'est une erreur liée à l'authentification
+      if (e.toString().contains('401') || e.toString().contains('auth')) {
+        logger.e('[$timestamp] 🔑 Token DocuSign expiré ou invalide');
+        emit(const DocuSignAuthRequired());
+      } else {
+        emit(DocumentDownloadError('Erreur lors du téléchargement: $e'));
+      }
     }
   }
 
@@ -241,8 +258,14 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
     } catch (e) {
       logger.e(
           '[$timestamp] ❌ Erreur lors de la récupération de l\'historique: $e');
-      emit(SignatureHistoryError(
-          'Erreur lors de la récupération de l\'historique: $e'));
+      
+      // Vérifier si c'est une erreur liée à l'authentification
+      if (e.toString().contains('401') || e.toString().contains('auth')) {
+        logger.e('[$timestamp] 🔑 Token DocuSign expiré ou invalide');
+        emit(const DocuSignAuthRequired());
+      } else {
+        emit(SignatureHistoryError('Erreur lors de la récupération de l\'historique: $e'));
+      }
     }
   }
 
@@ -254,10 +277,9 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
     logger.i('[$timestamp] 🔄 Mise à jour manuelle du token DocuSign');
 
     try {
-      // Ceci assume que vous avez accès à un service DocuSign
-      // Si ce n'est pas le cas, vous devez adapter cette partie
-      final docuSignService = getIt<DocuSignService>();
-      docuSignService.setAccessToken(
+      // Utiliser le DocuSignRemoteDataSource au lieu de DocuSignService
+      final docuSignDataSource = getIt<DocuSignRemoteDataSource>();
+      await docuSignDataSource.setAccessToken(
         event.token,
         expiresIn: event.expiresIn,
       );
@@ -269,5 +291,4 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
       emit(DocuSignAuthError('Erreur lors de la mise à jour du token: $e'));
     }
   }
-  
 }

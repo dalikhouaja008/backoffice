@@ -8,7 +8,7 @@ import 'package:flareline/domain/entities/land_entity.dart';
 import 'package:flareline/presentation/bloc/docusign/docusign_bloc.dart';
 import 'package:flareline/presentation/bloc/docusign/docusign_event.dart';
 import 'package:flareline/presentation/bloc/docusign/docusign_state.dart';
-import 'package:flareline/core/services/docusign_service.dart';
+import 'package:flareline/data/datasources/docusign_remote_data_source.dart';
 import 'package:flareline/core/injection/injection.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
@@ -44,7 +44,8 @@ class DocuSignSection extends StatefulWidget {
 class _DocuSignSectionState extends State<DocuSignSection> {
   html.WindowBase? _authWindow;
   final Logger _logger = getIt<Logger>();
-  final DocuSignService _docuSignService = getIt<DocuSignService>();
+  // Remplacer DocuSignService par DocuSignRemoteDataSource
+  final DocuSignRemoteDataSource _docuSignDataSource = getIt<DocuSignRemoteDataSource>();
   final SecureStorageService _secureStorage = getIt<SecureStorageService>();
 
   @override
@@ -61,7 +62,7 @@ class _DocuSignSectionState extends State<DocuSignSection> {
   // Méthode séparée pour vérifier l'authentification existante
   void _checkExistingAuth() {
     // Utiliser then() au lieu de await pour gérer le résultat asynchrone
-    _docuSignService.isAuthenticated.then((isAuthenticated) {
+    _docuSignDataSource.isAuthenticated().then((isAuthenticated) {
       if (isAuthenticated && mounted) {
         // Utiliser cette technique pour reporter l'exécution après la construction
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -100,7 +101,7 @@ class _DocuSignSectionState extends State<DocuSignSection> {
               _logger.i('🔑 Token DocuSign reçu via postMessage');
 
               // Mettre à jour le token dans le service
-              _docuSignService.setAccessToken(token, expiresIn: expiresIn);
+              _docuSignDataSource.setAccessToken(token, expiresIn: expiresIn, accountId: accountId);
 
               // Stocker le token dans le stockage sécurisé
               _storeTokenInSecureStorage(token, accountId, expiresIn, expiryValue: expiry?.toString());
@@ -422,6 +423,9 @@ class _DocuSignSectionState extends State<DocuSignSection> {
     // Notifier le bloc pour commencer le processus d'authentification
     context.read<DocuSignBloc>().add(InitiateDocuSignAuthenticationEvent());
 
+    // Utiliser la méthode de DocuSignRemoteDataSource au lieu de DocuSignService
+    _docuSignDataSource.initiateAuthentication();
+
     // Ouvrir une nouvelle fenêtre pour l'authentification
     _authWindow = html.window.open('/docusign/login', 'DocuSignAuth',
         'width=800,height=600,resizable=yes,scrollbars=yes,status=yes');
@@ -450,7 +454,7 @@ class _DocuSignSectionState extends State<DocuSignSection> {
       });
     } else {
       // La fenêtre a été fermée, vérifier si nous avons un token
-      _docuSignService.isAuthenticated.then((isAuthenticated) {
+      _docuSignDataSource.isAuthenticated().then((isAuthenticated) {
         if (isAuthenticated && !widget.isDocuSignReady && mounted) {
           setState(() {
             widget.onDocuSignStatusChanged(true);

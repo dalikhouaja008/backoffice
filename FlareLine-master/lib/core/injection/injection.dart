@@ -40,7 +40,6 @@ import 'package:flareline/domain/repositories/geometre_repository.dart';
 import 'package:flareline/domain/use_cases/geometre/get_pending_lands.dart';
 import 'package:flareline/domain/use_cases/geometre/validate_land.dart';
 import 'package:flareline/core/network/auth_interceptor.dart';
-import 'package:flareline/core/services/docusign_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -51,9 +50,6 @@ void setupInjection() {
   getIt.registerLazySingleton(() => const FlutterSecureStorage());
   getIt.registerLazySingleton(() => SecureStorageService());
   getIt.registerLazySingleton(() => SessionService());
-
-  // Enregistrement du service DocuSign
-  getIt.registerLazySingleton<DocuSignService>(() => DocuSignService());
   // Services externes
   getIt.registerLazySingleton<OpenRouteService>(() => OpenRouteService(
         apiKey: '5b3ce3597851110001cf6248c25ce73e7fc44895be99f46b9e13afbd',
@@ -108,7 +104,13 @@ void setupInjection() {
       ),
     );
 
-    dio.interceptors.add(DocuSignInterceptor(logger: getIt<Logger>()));
+  dio.interceptors.add(
+    DocuSignInterceptor(
+      logger: getIt<Logger>(),
+      secureStorage: getIt<SecureStorageService>(),  // Ajouter cette ligne
+    )
+  );
+
 
     // Configuration des en-têtes par défaut
     dio.options.headers = {
@@ -168,10 +170,9 @@ void setupInjection() {
 
   getIt.registerLazySingleton<DocuSignRemoteDataSource>(
       () => DocuSignRemoteDataSource(
-            dio: getIt<Dio>(), // Utilisera l'instance par défaut maintenant
+            dio: getIt<Dio>(),
             logger: getIt<Logger>(),
             secureStorage: getIt<SecureStorageService>(),
-            baseUrl: ApiConfig.landServiceUrl,
           ));
 
   // Repositories

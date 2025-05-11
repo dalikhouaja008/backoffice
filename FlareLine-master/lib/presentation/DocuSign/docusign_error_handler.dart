@@ -1,31 +1,30 @@
-// lib/presentation/DocuSign/docusign_auth_handler.dart
 import 'dart:html' as html;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flareline/core/injection/injection.dart';
-import 'package:flareline/core/services/docusign_service.dart';
-import 'package:flareline/core/theme/global_colors.dart';
 import 'package:flareline/data/datasources/docusign_remote_data_source.dart';
+import 'package:flareline/core/theme/global_colors.dart';
 import 'package:logger/logger.dart';
 
-class DocuSignAuthHandler extends StatefulWidget {
-  const DocuSignAuthHandler({super.key});
+class DocuSignErrorHandler extends StatefulWidget {
+  const DocuSignErrorHandler({super.key});
 
   @override
-  State<DocuSignAuthHandler> createState() => _DocuSignAuthHandlerState();
+  State<DocuSignErrorHandler> createState() => _DocuSignErrorHandlerState();
 }
 
-class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
+class _DocuSignErrorHandlerState extends State<DocuSignErrorHandler> {
   bool _processing = true;
   bool _success = false;
   String _message = "Traitement de l'authentification DocuSign...";
   String _details = "";
   String _token = ""; // Pour stocker le token
-  
+
   // Utiliser getIt.get pour éviter les instances potentiellement dupliquées
   Logger get _logger => getIt.get<Logger>();
-  DocuSignService get _docuSignService => getIt.get<DocuSignService>();
-  DocuSignRemoteDataSource get _dataSource => getIt.get<DocuSignRemoteDataSource>();
+  // Remplacer DocuSignService par DocuSignRemoteDataSource
+  DocuSignRemoteDataSource get _docuSignDataSource =>
+      getIt.get<DocuSignRemoteDataSource>();
 
   @override
   void initState() {
@@ -39,10 +38,11 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
   Future<void> _processAuthParameters() async {
     final timestamp = '2025-04-27 23:51:44';
     final currentUser = 'nesssim';
-    
+
     try {
-      _logger.i('[$timestamp] [$currentUser] 🔍 Traitement des paramètres DocuSign');
-      
+      _logger.i(
+          '[$timestamp] [$currentUser] 🔍 Traitement des paramètres DocuSign');
+
       // Obtenir l'URL actuelle et ses paramètres
       final uri = Uri.parse(html.window.location.href);
       final params = uri.queryParameters;
@@ -50,7 +50,8 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
       _logger.i('[$timestamp] [$currentUser] 📝 Paramètres reçus: $params');
       setState(() {
         final urlString = uri.toString();
-        _details = "URL: ${urlString.substring(0, math.min(100, urlString.length))}...\nParams: $params";
+        _details =
+            "URL: ${urlString.substring(0, math.min(100, urlString.length))}...\nParams: $params";
       });
 
       // Vérifier s'il s'agit d'une erreur
@@ -62,24 +63,27 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
       // Obtenir le token et autres paramètres
       final token = params['token'];
       final jwt = params['jwt'];
-      final code = params['code']; 
+      final code = params['code'];
       final expiresIn = int.tryParse(params['expires_in'] ?? '3600') ?? 3600;
       final accountId = params['account_id'];
 
       // Cas 1: Token direct
       if (token != null && token.isNotEmpty) {
-        _logger.i('[$timestamp] [$currentUser] ✅ Token reçu: ${token.substring(0, math.min(10, token.length))}...');
-        
-        // Stocker le token dans le service
-        _docuSignService.setAccessToken(token, expiresIn: expiresIn);
-        
-        // Stocker les données supplémentaires dans localStorage
-        if (jwt != null) html.window.localStorage['docusign_jwt'] = jwt;
-        if (accountId != null) html.window.localStorage['docusign_account_id'] = accountId;
-        
-        // Sauvegarder aussi via le datasource
-        await _dataSource.saveTokenFromLocalStorage();
-        
+        _logger.i(
+            '[$timestamp] [$currentUser] ✅ Token reçu: ${token.substring(0, math.min(10, token.length))}...');
+
+        // Stocker le token via DocuSignRemoteDataSource
+        await _docuSignDataSource.setAccessToken(token,
+            expiresIn: expiresIn, accountId: accountId);
+
+        // Utiliser processReceivedToken pour un traitement complet
+        await _docuSignDataSource.processReceivedToken(token,
+            accountId: accountId,
+            expiresIn: expiresIn,
+            expiryValue:
+                (DateTime.now().millisecondsSinceEpoch + expiresIn * 1000)
+                    .toString());
+
         setState(() {
           _processing = false;
           _success = true;
@@ -88,44 +92,25 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
           // Stocker une version tronquée du token pour l'affichage
           _token = token.substring(0, math.min(20, token.length)) + "...";
         });
-      } 
+      }
       // Cas 2: Code d'autorisation
       else if (code != null && code.isNotEmpty) {
-        _logger.i('[$timestamp] [$currentUser] 🔄 Traitement du code d\'autorisation');
-        
+        _logger.i(
+            '[$timestamp] [$currentUser] 🔄 Traitement du code d\'autorisation');
+
         setState(() {
           _message = "Échange du code d'autorisation...";
         });
-        
-        final success = await _docuSignService.processAuthCode(code);
-        
-        if (success) {
-          _logger.i('[$timestamp] [$currentUser] ✅ Code échangé avec succès');
-          
-          // Sauvegarder les tokens
-          await _dataSource.saveTokenFromLocalStorage();
-          
-          // Récupérer le token pour l'afficher
-          final storedToken = html.window.localStorage['docusign_token'] ?? "Token non disponible";
-          
-          setState(() {
-            _processing = false;
-            _success = true;
-            _message = "Authentification DocuSign réussie!";
-            _details += "\nCode échangé avec succès";
-            _token = storedToken.length > 20 
-                ? storedToken.substring(0, 20) + "..." 
-                : storedToken;
-          });
-        } else {
-          throw Exception('Échec de l\'échange du code d\'autorisation');
-        }
-      } 
+
+        // DocuSignRemoteDataSource n'a pas de méthode directe pour échanger un code
+        throw Exception(
+            "L'échange de code d'autorisation n'est pas disponible dans DocuSignRemoteDataSource");
+      }
       // Cas 3: Aucun paramètre valide
       else {
-        throw Exception('Aucun token ou code d\'autorisation trouvé dans l\'URL');
+        throw Exception(
+            'Aucun token ou code d\'autorisation trouvé dans l\'URL');
       }
-      
     } catch (e) {
       _logger.e('[$timestamp] [$currentUser] ❌ Erreur: $e');
       if (mounted) {
@@ -138,23 +123,21 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
       }
     }
   }
-  
-  void _handleErrorParameters(Map<String, String> params, String timestamp, String currentUser) {
+
+  void _handleErrorParameters(
+      Map<String, String> params, String timestamp, String currentUser) {
     final error = params['error'] ?? "Erreur inconnue";
     final code = params['code'] ?? "Non disponible";
     final state = params['state'] ?? "Non disponible";
-    
+
     _logger.e('[$timestamp] [$currentUser] ❌ Erreur DocuSign: $error');
-    
+
     setState(() {
       _processing = false;
       _success = false;
       _message = "Erreur d'authentification DocuSign";
       _details = "Message: $error\nCode: $code\nÉtat: $state";
     });
-    
-    html.window.localStorage['docusign_last_error'] = 
-        'Erreur: $error, Code: $code, État: $state, Timestamp: $timestamp, User: $currentUser';
   }
 
   // Ferme la fenêtre actuelle et notifie la fenêtre parent si elle existe
@@ -165,22 +148,24 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
         // Envoyer un message à la fenêtre parente avec le token
         html.window.opener!.postMessage({
           'type': 'docusign_auth_success',
-          'token': html.window.localStorage['docusign_token'] ?? '',
-          'jwt': html.window.localStorage['docusign_jwt'] ?? '',
-          'accountId': html.window.localStorage['docusign_account_id'] ?? '',
+          'token':
+              _token, // Utiliser la variable locale au lieu de localStorage
         }, '*');
-        
-        _logger.i('[2025-04-27 23:51:44] [nesssim] 📤 Message envoyé à la fenêtre parente');
-        
+
+        _logger.i(
+            '[2025-04-27 23:51:44] [nesssim] 📤 Message envoyé à la fenêtre parente');
+
         // Fermer cette fenêtre après un court délai
         Future.delayed(const Duration(seconds: 1), () {
           html.window.close();
         });
       } else {
-        _logger.w('[2025-04-27 23:51:44] [nesssim] ⚠️ Pas de fenêtre parente détectée');
+        _logger.w(
+            '[2025-04-27 23:51:44] [nesssim] ⚠️ Pas de fenêtre parente détectée');
       }
     } catch (e) {
-      _logger.e('[2025-04-27 23:51:44] [nesssim] ❌ Erreur lors de la communication avec la fenêtre parente: $e');
+      _logger.e(
+          '[2025-04-27 23:51:44] [nesssim] ❌ Erreur lors de la communication avec la fenêtre parente: $e');
     }
   }
 
@@ -188,15 +173,15 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_success 
-            ? 'Authentification DocuSign' 
-            : _processing 
-                ? 'Traitement en cours' 
+        title: Text(_success
+            ? 'Authentification DocuSign'
+            : _processing
+                ? 'Traitement en cours'
                 : 'Erreur DocuSign'),
-        backgroundColor: _success 
-            ? GlobalColors.primary 
-            : _processing 
-                ? GlobalColors.primary 
+        backgroundColor: _success
+            ? GlobalColors.primary
+            : _processing
+                ? GlobalColors.primary
                 : Colors.red[800],
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false, // Pas de bouton retour
@@ -235,14 +220,18 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
                 Text(
                   _message,
                   style: TextStyle(
-                    fontSize: 22, 
+                    fontSize: 22,
                     fontWeight: FontWeight.w500,
-                    color: _success ? Colors.green[700] : _processing ? Colors.black : Colors.red[700],
+                    color: _success
+                        ? Colors.green[700]
+                        : _processing
+                            ? Colors.black
+                            : Colors.red[700],
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Affichage du token tronqué pour débogage
                 if (_success && _token.isNotEmpty)
                   Container(
@@ -276,7 +265,7 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
                       ],
                     ),
                   ),
-                
+
                 if (_details.isNotEmpty)
                   Container(
                     width: double.infinity,
@@ -297,56 +286,62 @@ class _DocuSignAuthHandlerState extends State<DocuSignAuthHandler> {
                 const SizedBox(height: 24),
                 if (!_processing)
                   _success
-                    ? Column(
-                        children: [
-                          Text(
-                            "Vous pouvez maintenant fermer cette fenêtre et retourner à l'application principale.",
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey[700],
+                      ? Column(
+                          children: [
+                            Text(
+                              "Vous pouvez maintenant fermer cette fenêtre et retourner à l'application principale.",
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[700],
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: GlobalColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                              minimumSize: const Size(200, 50),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: GlobalColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 32, vertical: 16),
+                                minimumSize: const Size(200, 50),
+                              ),
+                              onPressed: _closeAndNotifyParent,
+                              child: const Text(
+                                'Fermer et retourner',
+                                style: TextStyle(fontSize: 16),
+                              ),
                             ),
-                            onPressed: _closeAndNotifyParent,
-                            child: const Text(
-                              'Fermer et retourner',
-                              style: TextStyle(fontSize: 16),
+                          ],
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: GlobalColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 16),
+                              ),
+                              onPressed: () =>
+                                  _docuSignDataSource.initiateAuthentication(),
+                              child: const Text('Réessayer',
+                                  style: TextStyle(fontSize: 16)),
                             ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: GlobalColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            const SizedBox(width: 16),
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: GlobalColors.primary,
+                                side: BorderSide(color: GlobalColors.primary),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 16),
+                              ),
+                              onPressed: _closeAndNotifyParent,
+                              child: const Text('Fermer',
+                                  style: TextStyle(fontSize: 16)),
                             ),
-                            onPressed: () => _docuSignService.initiateAuthentication(),
-                            child: const Text('Réessayer', style: TextStyle(fontSize: 16)),
-                          ),
-                          const SizedBox(width: 16),
-                          OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: GlobalColors.primary,
-                              side: BorderSide(color: GlobalColors.primary),
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                            ),
-                            onPressed: _closeAndNotifyParent,
-                            child: const Text('Fermer', style: TextStyle(fontSize: 16)),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
               ],
             ),
           ),
