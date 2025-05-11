@@ -212,13 +212,13 @@ void setupInjection() {
 
   getIt.registerLazySingleton<CreateEnvelopeUseCase>(
     () => CreateEnvelopeUseCase(
-      repository: getIt<DocuSignRepository>(),
+     getIt<DocuSignRepository>(),
     ),
   );
 
   getIt.registerLazySingleton<GetSigningUrlUseCase>(
     () => GetSigningUrlUseCase(
-      repository: getIt<DocuSignRepository>(),
+       getIt<DocuSignRepository>(),
     ),
   );
 

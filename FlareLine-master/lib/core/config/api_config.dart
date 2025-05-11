@@ -44,6 +44,12 @@ class ApiConfig {
   static String get apiBaseUrl {
     return landServiceUrl;
   }
+
+
+static String get signingReturnPath => '/signing-return';
+
+
+static String get signingReturnUrl => '$landServiceUrl$signingReturnPath';
   
   // Méthode privée pour générer l'URL appropriée selon la plateforme
   static String _getPlatformSpecificUrl(int port) {

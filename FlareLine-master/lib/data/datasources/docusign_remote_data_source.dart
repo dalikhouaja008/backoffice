@@ -310,7 +310,7 @@ class DocuSignRemoteDataSource {
   }
 
   // Méthode pour obtenir l'URL de signature embarquée
-  Future<Map<String, dynamic>> getEmbeddedSigningUrl({
+  Future<String> getEmbeddedSigningUrl({
     required String envelopeId,
     required String signerEmail,
     required String signerName,
@@ -346,11 +346,14 @@ class DocuSignRemoteDataSource {
         tokenToUse = docusignToken;
       }
 
-      // AJOUT: Logger le token pour debugging
-      logger.i(
-          '[$timestamp] 📋 Token DocuSign (début): ${tokenToUse.substring(0, min(20, tokenToUse.length))}...');
+      final cleanToken = _cleanToken(tokenToUse);
+      logger.i('[$timestamp] 🔧 Token nettoyé, longueur: ${cleanToken.length}');
 
       final authToken = await getAccessToken();
+      if (authToken == null || authToken.isEmpty) {
+        logger.e('[$timestamp] ❌ Token d\'authentification introuvable');
+        throw Exception('Token d\'authentification introuvable');
+      }
 
       // URL de retour par défaut si non fournie
       final finalReturnUrl = returnUrl ??
@@ -361,7 +364,7 @@ class DocuSignRemoteDataSource {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $authToken',
-          'X-DocuSign-Token': 'Bearer ${_cleanToken(tokenToUse)}',
+          'X-DocuSign-Token': 'Bearer $cleanToken',
         },
       );
 
@@ -386,8 +389,16 @@ class DocuSignRemoteDataSource {
 
       if (response.statusCode == 200) {
         if (response.data is Map && response.data['success'] == true) {
-          logger.i('[$timestamp] ✅ URL de signature obtenue avec succès');
-          return response.data;
+          final signingUrl = response.data['signingUrl'];
+          if (signingUrl != null && signingUrl is String) {
+            logger.i(
+                '[$timestamp] ✅ URL de signature obtenue avec succès: ${signingUrl.substring(0, min(50, signingUrl.length))}...');
+            return signingUrl;
+          } else {
+            logger.e(
+                '[$timestamp] ❌ Format de réponse inattendu: URL de signature manquante');
+            throw Exception('URL de signature manquante dans la réponse');
+          }
         } else {
           logger.e(
               '[$timestamp] ❌ Format de réponse inattendu: ${response.data}');
@@ -397,22 +408,7 @@ class DocuSignRemoteDataSource {
         logger.e('[$timestamp] ❌ Erreur HTTP: ${response.statusCode}');
         throw Exception('Erreur HTTP ${response.statusCode}: ${response.data}');
       }
-    } on DioException catch (e) {
-      final timestamp = DateTime.now().toIso8601String();
-
-      // Vérifier si l'erreur est liée à l'authentification
-      if (e.response?.statusCode == 401) {
-        logger.e('[$timestamp] 🔒 Erreur d\'authentification DocuSign (401)');
-        await logout();
-        throw Exception(
-            'Token DocuSign expiré ou invalide. Veuillez vous reconnecter.');
-      }
-
-      logger.e('[$timestamp] ❌ Erreur Dio: ${e.message}');
-      throw Exception('Erreur réseau: ${e.message}');
     } catch (e) {
-      final timestamp = DateTime.now().toIso8601String();
-      logger.e('[$timestamp] ❌ Exception: $e');
       rethrow;
     }
   }
@@ -637,142 +633,168 @@ class DocuSignRemoteDataSource {
     }
   }
 
-  Future<Map<String, dynamic>> createEmbeddedEnvelope({
-    required String documentBase64,
-    required String signerEmail,
-    required String signerName,
-    required String title,
-    String? documentName,
-    String? documentType,
-  }) async {
-    try {
-      final timestamp = DateTime.now().toIso8601String();
-      logger.i('[$timestamp] 📝 Création d\'une enveloppe DocuSign'
-          '\n└─ Signataire: $signerName ($signerEmail)'
-          '\n└─ Titre: $title'
-          '\n└─ Taille du document: ${documentBase64.length} caractères'
-          '\n└─ Nom du document: ${documentName ?? "Auto-détecté"}'
-          '\n└─ Type du document: ${documentType ?? "Auto-détecté"}');
+ Future<Map<String, dynamic>> createEmbeddedEnvelope({
+  required String documentBase64,
+  required String signerEmail,
+  required String signerName,
+  required String title,
+  String? documentName,
+  String? documentType,
+}) async {
+  try {
+    final timestamp = DateTime.now().toIso8601String();
+    logger.i('[$timestamp] 📝 Création d\'une enveloppe DocuSign'
+        '\n└─ Signataire: $signerName ($signerEmail)'
+        '\n└─ Titre: $title'
+        '\n└─ Taille du document: ${documentBase64.length} caractères'
+        '\n└─ Nom du document: ${documentName ?? "Auto-détecté"}'
+        '\n└─ Type du document: ${documentType ?? "Auto-détecté"}');
 
-      // 1. Vérifier si l'authentification est valide
-      if (!await isAuthenticated()) {
-        logger.e('[$timestamp] ❌ Non authentifié à DocuSign');
-        throw Exception(
-            'Non authentifié à DocuSign. Veuillez vous reconnecter.');
-      }
-
-      // 2. Récupérer les tokens
-      // Priorité au JWT
-      String? tokenToUse;
-
-      final jwt = html.window.localStorage[_docusignJwtKey];
-      if (jwt != null && jwt.isNotEmpty) {
-        logger.i('[$timestamp] 🔑 Utilisation du JWT depuis localStorage');
-        tokenToUse = jwt;
-      } else {
-        final docusignToken = html.window.localStorage[_docusignTokenKey];
-        if (docusignToken == null || docusignToken.isEmpty) {
-          logger
-              .e('[$timestamp] ❌ Token DocuSign introuvable dans localStorage');
-          throw Exception('Token DocuSign introuvable');
-        }
-        logger
-            .i('[$timestamp] 🔑 Utilisation du token brut depuis localStorage');
-        tokenToUse = docusignToken;
-      }
-
-      final cleanToken = _cleanToken(tokenToUse);
-      logger.i('[$timestamp] 🔧 Token nettoyé, longueur: ${cleanToken.length}');
-
-      // Récupérer le token d'authentification de l'application
-      final authToken = await getAccessToken();
-      if (authToken == null || authToken.isEmpty) {
-        logger.e('[$timestamp] ❌ Token d\'authentification introuvable');
-        throw Exception('Token d\'authentification introuvable');
-      }
-
-      // Configuration de la requête
-      logger.i('[$timestamp] 🔧 Préparation des en-têtes pour la requête');
-      final options = Options(
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-          'X-DocuSign-Token': 'Bearer $cleanToken',
-        },
-      );
-
-      // Données à envoyer
-      final data = {
-        'documentBase64': documentBase64,
-        'signerEmail': signerEmail,
-        'signerName': signerName,
-        'title': title,
-      };
-
-      // NOUVEAU: Ajouter le nom du document si fourni
-      if (documentName != null && documentName.isNotEmpty) {
-        data['documentName'] = documentName;
-      }
-
-      // NOUVEAU: Ajouter le type du document si fourni
-      if (documentType != null && documentType.isNotEmpty) {
-        data['documentType'] = documentType;
-      }
-
-      logger.i(
-          '[$timestamp] 📤 Envoi de la requête à $baseUrl/docusign/create-embedded-envelope');
-
-      // Appel à l'API
-      final response = await dio
-          .post(
-            '$baseUrl/docusign/create-embedded-envelope',
-            options: options,
-            data: data,
-          )
-          .timeout(const Duration(seconds: 30));
-
-      logger.i('[$timestamp] 📥 Réponse reçue: ${response.statusCode}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        // Vérifier le contenu de la réponse
-        if (response.data is Map && response.data['success'] == true) {
-          logger.i('[$timestamp] ✅ Enveloppe créée avec succès');
-          return response.data;
-        } else {
-          logger.e(
-              '[$timestamp] ❌ Format de réponse inattendu: ${response.data}');
-          throw Exception('Format de réponse inattendu: ${response.data}');
-        }
-      } else {
-        logger.e('[$timestamp] ❌ Erreur HTTP: ${response.statusCode}');
-        throw Exception('Erreur HTTP ${response.statusCode}: ${response.data}');
-      }
-    } on DioException catch (e) {
-      final timestamp = DateTime.now().toIso8601String();
-
-      // Vérifier si l'erreur est liée à l'authentification
-      if (e.response?.statusCode == 401) {
-        logger.e('[$timestamp] 🔒 Erreur d\'authentification DocuSign (401)');
-        logger.e('[$timestamp] 🔒 Réponse du serveur: ${e.response?.data}');
-
-        // Nettoyage des tokens
-        await logout();
-
-        throw Exception(
-            'Token DocuSign expiré ou invalide. Veuillez vous reconnecter.');
-      }
-
-      logger.e('[$timestamp] ❌ Erreur Dio: ${e.message}'
-          '\n└─ Statut: ${e.response?.statusCode}'
-          '\n└─ Réponse: ${e.response?.data}');
-
-      throw Exception('Erreur réseau: ${e.message}');
-    } catch (e) {
-      final timestamp = DateTime.now().toIso8601String();
-      logger.e('[$timestamp] ❌ Exception: $e');
-      rethrow;
+    // 1. Vérifier si l'authentification est valide
+    if (!await isAuthenticated()) {
+      logger.e('[$timestamp] ❌ Non authentifié à DocuSign');
+      throw Exception('AUTH_ERROR:Non authentifié à DocuSign. Veuillez vous reconnecter.');
     }
+
+    // 2. Récupérer les tokens
+    // Priorité au JWT
+    String? tokenToUse;
+
+    final jwt = html.window.localStorage[_docusignJwtKey];
+    if (jwt != null && jwt.isNotEmpty) {
+      logger.i('[$timestamp] 🔑 Utilisation du JWT depuis localStorage');
+      tokenToUse = jwt;
+    } else {
+      final docusignToken = html.window.localStorage[_docusignTokenKey];
+      if (docusignToken == null || docusignToken.isEmpty) {
+        logger
+            .e('[$timestamp] ❌ Token DocuSign introuvable dans localStorage');
+        throw Exception('AUTH_ERROR:Token DocuSign introuvable');
+      }
+      logger
+          .i('[$timestamp] 🔑 Utilisation du token brut depuis localStorage');
+      tokenToUse = docusignToken;
+    }
+
+    final cleanToken = _cleanToken(tokenToUse);
+    logger.i('[$timestamp] 🔧 Token nettoyé, longueur: ${cleanToken.length}');
+
+    // Récupérer le token d'authentification de l'application
+    final authToken = await getAccessToken();
+    if (authToken == null || authToken.isEmpty) {
+      logger.e('[$timestamp] ❌ Token d\'authentification introuvable');
+      throw Exception('Token d\'authentification introuvable');
+    }
+
+    // Configuration de la requête
+    logger.i('[$timestamp] 🔧 Préparation des en-têtes pour la requête');
+    final options = Options(
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $authToken',
+        'X-DocuSign-Token': 'Bearer $cleanToken',
+      },
+    );
+
+    // Données à envoyer
+    final data = {
+      'documentBase64': documentBase64,
+      'signerEmail': signerEmail,
+      'signerName': signerName,
+      'title': title,
+    };
+
+    // NOUVEAU: Ajouter le nom du document si fourni
+    if (documentName != null && documentName.isNotEmpty) {
+      data['documentName'] = documentName;
+    }
+
+    // NOUVEAU: Ajouter le type du document si fourni
+    if (documentType != null && documentType.isNotEmpty) {
+      data['documentType'] = documentType;
+    }
+
+    logger.i(
+        '[$timestamp] 📤 Envoi de la requête à $baseUrl/docusign/create-embedded-envelope');
+
+    // Appel à l'API
+    final response = await dio
+        .post(
+          '$baseUrl/docusign/create-embedded-envelope',
+          options: options,
+          data: data,
+        )
+        .timeout(const Duration(seconds: 30));
+
+    logger.i('[$timestamp] 📥 Réponse reçue: ${response.statusCode}');
+
+    // Vérifier le contenu de la réponse
+    if (response.data is Map) {
+      if (response.data['success'] == true &&
+          response.data['envelopeId'] != null) {
+        logger.i('[$timestamp] ✅ Enveloppe créée avec succès');
+        return response.data;
+      }
+      // NOUVEAU: Traiter spécifiquement les erreurs d'authentification
+      else if (response.data['success'] == false && response.data['error'] != null) {
+        final errorMessage = response.data['error'].toString();
+
+        // Vérifier si l'erreur est liée à l'authentification
+        if (errorMessage.contains('token') ||
+            errorMessage.contains('Token') ||
+            errorMessage.contains('auth') ||
+            errorMessage.contains('Auth') ||
+            errorMessage.contains('jwt') ||
+            errorMessage.contains('JWT') ||
+            errorMessage.contains('expiré') ||
+            errorMessage.contains('invalide')) {
+          logger.e(
+              '[$timestamp] 🔑 Erreur d\'authentification DocuSign: $errorMessage');
+
+          // Supprimer les tokens DocuSign périmés
+          await logout();
+
+          // Lancer une exception spécifique pour les erreurs d'authentification
+          throw Exception('AUTH_ERROR:$errorMessage');
+        } else {
+          logger.e('[$timestamp] ❌ Erreur du serveur: $errorMessage');
+          throw Exception(errorMessage);
+        }
+      } else {
+        logger.e(
+            '[$timestamp] ❌ Format de réponse inattendu: ${response.data}');
+        throw Exception('Format de réponse inattendu: ${response.data}');
+      }
+    } else {
+      logger.e('[$timestamp] ❌ Erreur HTTP: ${response.statusCode}');
+      throw Exception('Erreur HTTP ${response.statusCode}: ${response.data}');
+    }
+  } on DioException catch (e) {
+    final timestamp = DateTime.now().toIso8601String();
+
+    // Vérifier si l'erreur est liée à l'authentification
+    if (e.response?.statusCode == 401) {
+      logger.e('[$timestamp] 🔒 Erreur d\'authentification DocuSign (401)');
+      logger.e('[$timestamp] 🔒 Réponse du serveur: ${e.response?.data}');
+
+      // Nettoyage des tokens
+      await logout();
+
+      throw Exception(
+          'AUTH_ERROR:Token DocuSign expiré ou invalide. Veuillez vous reconnecter.');
+    }
+
+    logger.e('[$timestamp] ❌ Erreur Dio: ${e.message}'
+        '\n└─ Statut: ${e.response?.statusCode}'
+        '\n└─ Réponse: ${e.response?.data}');
+
+    throw Exception('Erreur réseau: ${e.message}');
+  } catch (e) {
+    final timestamp = DateTime.now().toIso8601String();
+    logger.e('[$timestamp] ❌ Exception: $e');
+    rethrow;
   }
+}
 
   // Méthode pour créer une enveloppe pour signature embarquée (version compatible avec DocuSignService)
   Future<Map<String, dynamic>> createEnvelopeForEmbeddedSigning({

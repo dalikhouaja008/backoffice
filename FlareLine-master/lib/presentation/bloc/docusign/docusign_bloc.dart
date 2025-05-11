@@ -1,3 +1,4 @@
+import 'package:flareline/core/config/api_config.dart';
 import 'package:flareline/core/injection/injection.dart';
 import 'package:flareline/data/datasources/docusign_remote_data_source.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -106,12 +107,11 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
            '\n└─ Signataire: ${event.signerName} (${event.signerEmail})');
   
   try {
+    // Indiquer que la création est en cours
     emit(EnvelopeCreationInProgress());
     
-    // Récupérer une instance du data source DocuSign
+    // Vérifier si l'authentification est valide
     final docuSignDataSource = getIt<DocuSignRemoteDataSource>();
-    
-    // Vérifier d'abord si le token est valide
     final isAuthenticated = await docuSignDataSource.isAuthenticated();
     if (!isAuthenticated) {
       logger.e('[$timestamp] 🚫 Session DocuSign expirée, authentification requise');
@@ -119,16 +119,52 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
       return;
     }
     
+    // Créer l'enveloppe
     final envelope = await createEnvelope(
       documentBase64: event.documentBase64,
       signerEmail: event.signerEmail,
       signerName: event.signerName,
       title: event.title,
+      documentName: event.documentName,
+      documentType: event.documentType,
     );
     
     if (envelope.envelopeId != null) {
       logger.i('[$timestamp] ✅ Enveloppe créée avec succès: ${envelope.envelopeId}');
+      
+      // Émettre l'événement de création d'enveloppe
       emit(EnvelopeCreated(envelope.envelopeId!));
+      
+      // Obtenir automatiquement l'URL de signature
+      logger.i('[$timestamp] 🔄 Récupération de l\'URL de signature...');
+      
+      try {
+        // Définir l'URL de retour
+        final returnUrl = '${ApiConfig.landServiceUrl}/signing-return?envelopeId=${envelope.envelopeId}';
+        
+        // Récupérer l'URL de signature
+        final signingUrl = await getSigningUrl(
+          envelopeId: envelope.envelopeId!,
+          signerEmail: event.signerEmail,
+          signerName: event.signerName,
+          returnUrl: returnUrl,
+        );
+        
+        logger.i('[$timestamp] ✅ URL de signature récupérée avec succès');
+        
+        // Émettre l'URL de signature
+        emit(SigningUrlLoaded(signingUrl));
+      } catch (signingUrlError) {
+        logger.e('[$timestamp] ❌ Erreur lors de la récupération de l\'URL de signature: $signingUrlError');
+        
+        // Vérifier si c'est une erreur d'authentification
+        if (signingUrlError.toString().contains('AUTH_ERROR:')) {
+          logger.e('[$timestamp] 🔑 Token DocuSign expiré ou invalide');
+          emit(const DocuSignAuthRequired());
+        } else {
+          emit(SigningUrlError('Erreur lors de la récupération de l\'URL de signature: $signingUrlError'));
+        }
+      }
     } else {
       logger.e('[$timestamp] ❌ L\'enveloppe a été créée mais sans ID');
       emit(const EnvelopeCreationError('L\'enveloppe a été créée mais sans ID'));
@@ -136,10 +172,13 @@ class DocuSignBloc extends Bloc<DocuSignEvent, DocuSignState> {
   } catch (e) {
     logger.e('[$timestamp] ❌ Erreur lors de la création de l\'enveloppe: $e');
     
-    // Vérifier si c'est une erreur liée à l'authentification ou token expiré
-    if (e.toString().contains('jwt expired') || 
+    // AMÉLIORÉ: Vérification plus précise des erreurs d'authentification
+    if (e.toString().contains('AUTH_ERROR:') || 
+        e.toString().contains('jwt expired') || 
         e.toString().contains('token') && e.toString().contains('invalid') ||
-        e.toString().contains('401') || e.toString().contains('403')) {
+        e.toString().contains('Token') && e.toString().contains('invalide') ||
+        e.toString().contains('401') || 
+        e.toString().contains('403')) {
       logger.e('[$timestamp] 🔑 Token DocuSign expiré ou invalide');
       emit(const DocuSignAuthRequired());
     } else {
