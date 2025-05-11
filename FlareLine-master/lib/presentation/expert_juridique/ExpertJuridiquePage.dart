@@ -1,4 +1,3 @@
-// lib/presentation/expert_juridique/ExpertJuridiquePage.dart
 import 'package:flareline/core/injection/injection.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_bloc.dart';
 import 'package:flareline/presentation/bloc/expert_juridique/expert_juridique_event.dart';

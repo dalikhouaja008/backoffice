@@ -37,7 +37,6 @@ class DocuSignAuthListener {
           // Vérifier si c'est un message DocuSign
           if (data['type'] == 'DOCUSIGN_TOKEN') {
             final token = data['token'];
-            final accountId = data['accountId'];
             final expiresIn = data['expiresIn'];
             
             if (token != null && token is String) {

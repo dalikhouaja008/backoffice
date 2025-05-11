@@ -1,106 +1,136 @@
-// lib/core/services/route_service.dart
-import 'dart:convert';
-
+import 'package:flareline/core/services/sidebar_service.dart';
 import 'package:flutter/material.dart';
 
 class RouteService {
-  // Obtenir la route initiale basée sur le rôle
+  static Map<String, List<String>> _routePermissions = {};
+  static bool _initialized = false;
+
+  // Méthode pour initialiser les permissions des routes
+  static Future<void> initialize() async {
+    if (_initialized) return;
+
+    try {
+      // Charger tous les menus
+      List<MenuGroup> allMenuGroups = await SidebarService.loadMenu();
+
+      // Construire la map des permissions
+      for (var group in allMenuGroups) {
+        for (var menuItem in group.menuList) {
+          _addRoutePermissions(menuItem);
+        }
+      }
+
+      _initialized = true;
+    } catch (e) {
+      print('Error initializing route permissions: $e');
+    }
+  }
+
+  // Méthode récursive pour ajouter les permissions de routes
+  static void _addRoutePermissions(MenuItem menuItem) {
+    // Si cet élément a un chemin, ajouter ses permissions
+    if (menuItem.path != null && menuItem.path!.isNotEmpty) {
+      _routePermissions[menuItem.path!] = menuItem.allowedRoles;
+    }
+
+    // Si cet élément a des enfants, traiter chaque enfant
+    if (menuItem.childList != null) {
+      for (var child in menuItem.childList!) {
+        _addRoutePermissions(child);
+      }
+    }
+  }
+
+  // Vérifier si un utilisateur a accès à une route spécifique
+  static bool canAccessRoute(String role, String route) {
+    // Si les routes n'ont pas été initialisées, essayer d'initialiser synchronement
+    if (!_initialized) {
+      // Attention : cette approche est moins fiable, il vaut mieux appeler initialize() au démarrage de l'app
+      print(
+          'Warning: RouteService not initialized, permission check may be inaccurate');
+      return true; // Par défaut, autoriser l'accès si non initialisé
+    }
+
+    // Si la route n'existe pas dans les permissions, considérer qu'elle est accessible à tous
+    if (!_routePermissions.containsKey(route)) return true;
+
+    // Si c'est un admin, il a accès à tout
+    if (role == 'admin') return true;
+
+    // Vérifier si le rôle est dans la liste des rôles autorisés
+    return _routePermissions[route]!.contains(role) ||
+        _routePermissions[route]!.contains('all');
+  }
+
+  // Obtenir la route initiale en fonction du rôle
   static String getInitialRouteForRole(String role) {
-    switch (role.toUpperCase()) {
-      case 'ADMIN':
-        return '/'; // Dashboard admin
-      case 'GEOMETRE':
-        return '/geometre';
-      case 'NOTAIRE':
-        return '/notaire';
-      case 'EXPERT_JURIDIQUE':
-        return '/expert';
-      default:
-        return '/'; // Route par défaut
-    }
+    // Les administrateurs vont au dashboard
+    if (role == 'admin') return '/';
+
+    // Les géomètres vont à leur page spécifique
+    if (role == 'geometre') return '/geometre';
+
+    // Les experts juridiques vont à leur page spécifique
+    if (role == 'expert_juridique') return '/expert_juridique';
+
+    // Les chefs de projet vont à leur page spécifique
+    if (role == 'project_manager') return '/project';
+
+    // Par défaut, aller au dashboard
+    return '/';
   }
 
-  // Vérifier si un rôle a accès à une route spécifique
-  static bool canAccessRoute(String route, String role) {
-    // Routes accessibles par tous les utilisateurs connectés
-    final List<String> commonRoutes = ['/profile', '/settings'];
-    
-    // Routes accessibles seulement par certains rôles
-    final Map<String, List<String>> roleRoutes = {
-      'ADMIN': ['/', '/tools', '/contacts', '/invoice', '/tables', '/modal'],
-      'GEOMETRE': ['/geometre', '/tools'],
-      'NOTAIRE': ['/notaire', '/invoice'],
-      'EXPERT_JURIDIQUE': ['/expert'],
-    };
+  // Méthode utilitaire pour obtenir toutes les routes accessibles à un rôle
+  static List<String> getAccessibleRoutesForRole(String role) {
+    if (!_initialized) {
+      // Si non initialisé, retourner une liste vide
+      print(
+          'Warning: RouteService not initialized, no accessible routes returned');
+      return [];
+    }
 
-    // Routes publiques (non authentifiées)
-    final List<String> publicRoutes = ['/signIn', '/signUp', '/resetPwd'];
-    
-    // Si c'est une route publique, autoriser l'accès
-    if (publicRoutes.contains(route)) {
-      return true;
+    // Si c'est un admin, il a accès à toutes les routes
+    if (role == 'admin') {
+      return _routePermissions.keys.toList();
     }
-    
-    // Si le rôle n'existe pas dans notre mapping
-    if (!roleRoutes.containsKey(role.toUpperCase())) {
-      return false;
-    }
-    
-    // Vérifier si la route est accessible pour ce rôle ou si c'est une route commune
-    return roleRoutes[role.toUpperCase()]!.contains(route) || commonRoutes.contains(route);
+
+    // Filtrer les routes accessibles au rôle
+    return _routePermissions.entries
+        .where((entry) =>
+            entry.value.contains(role) || entry.value.contains('all'))
+        .map((entry) => entry.key)
+        .toList();
   }
 
-  // Obtenir menu sidebar filtré par rôle
-  static Future<List<dynamic>> getMenuItemsByRole(String role, BuildContext context) async {
-    // Charger le fichier JSON du menu
-    String jsonContent = await DefaultAssetBundle.of(context)
-        .loadString('assets/routes/menu_route_en.json');
-    
-    List<dynamic> originalMenu = json.decode(jsonContent);
-    
-    // Si admin, retourner le menu complet
-    if (role.toUpperCase() == 'ADMIN') {
-      return originalMenu;
+  // Méthode pour vérifier si une route est accessible et rediriger si nécessaire
+  static String? getRedirectIfNotAccessible(String role, String route) {
+    // Si les routes n'ont pas été initialisées ou si l'utilisateur a accès
+    if (!_initialized || canAccessRoute(role, route)) {
+      return null; // Pas besoin de redirection
     }
-    
-    // Autrement, filtrer le menu selon le rôle
-    List<dynamic> filteredMenu = [];
-    
-    for (var group in originalMenu) {
-      List<dynamic> filteredMenuItems = [];
-      
-      for (var menuItem in group['menuList']) {
-        String? path = menuItem['path'];
-        
-        // Si l'élément a un chemin et que l'utilisateur peut y accéder
-        if (path != null && canAccessRoute(path, role)) {
-          filteredMenuItems.add(menuItem);
-        }
-        // Si l'élément a des sous-éléments, les filtrer aussi
-        else if (menuItem.containsKey('childList')) {
-          List<dynamic> filteredChildItems = [];
-          
-          for (var childItem in menuItem['childList']) {
-            if (canAccessRoute(childItem['path'], role)) {
-              filteredChildItems.add(childItem);
-            }
-          }
-          
-          if (filteredChildItems.isNotEmpty) {
-            var newMenuItem = Map<String, dynamic>.from(menuItem);
-            newMenuItem['childList'] = filteredChildItems;
-            filteredMenuItems.add(newMenuItem);
-          }
-        }
-      }
-      
-      if (filteredMenuItems.isNotEmpty) {
-        var newGroup = Map<String, dynamic>.from(group);
-        newGroup['menuList'] = filteredMenuItems;
-        filteredMenu.add(newGroup);
-      }
+
+    // Sinon, rediriger vers la route initiale du rôle
+    return getInitialRouteForRole(role);
+  }
+
+  // Méthode pour naviguer vers une route en vérifiant les permissions
+  static Future<void> navigateIfAuthorized(
+      BuildContext context, String role, String route) async {
+    // Vérifier l'accès à la route
+    if (canAccessRoute(role, route)) {
+      // Naviguer vers la route demandée
+      Navigator.of(context).pushNamed(route);
+    } else {
+      // Afficher un message d'erreur
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Vous n\'avez pas accès à cette page.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+
+      // Optionnel : rediriger vers une page accessible
+      // Navigator.of(context).pushNamed(getInitialRouteForRole(role));
     }
-    
-    return filteredMenu;
   }
 }

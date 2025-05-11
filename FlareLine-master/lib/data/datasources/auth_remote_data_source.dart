@@ -39,6 +39,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           _id
           email
           username
+          role
           isTwoFactorEnabled
         }
         sessionId
@@ -164,9 +165,5 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     }
   }
 
- 
 
- 
-
-  
 }

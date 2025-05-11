@@ -1,4 +1,3 @@
-import 'dart:html' as html; 
 import 'package:dio/dio.dart';
 import 'package:flareline/core/injection/injection.dart';
 import 'package:logger/logger.dart';

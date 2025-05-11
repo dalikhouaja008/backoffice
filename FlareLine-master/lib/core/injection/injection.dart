@@ -1,6 +1,6 @@
+import 'package:flareline/core/config/api_config.dart';
 import 'package:flareline/core/network/docusign_interceptor.dart';
 import 'package:flareline/core/network/graphql_client.dart';
-import 'package:flareline/core/routes/route_guard.dart';
 import 'package:flareline/core/services/location_service.dart';
 import 'package:flareline/core/services/openroute_service.dart';
 import 'package:flareline/core/services/secure_storage.dart';
@@ -38,10 +38,6 @@ import 'package:flareline/domain/repositories/geometre_repository.dart';
 import 'package:flareline/domain/use_cases/geometre/get_pending_lands.dart';
 import 'package:flareline/domain/use_cases/geometre/validate_land.dart';
 import 'package:flareline/core/network/auth_interceptor.dart';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
-
-// Ajout de l'import pour DocuSign
 import 'package:flareline/core/services/docusign_service.dart';
 
 final getIt = GetIt.instance;
@@ -53,24 +49,34 @@ void setupInjection() {
   getIt.registerLazySingleton(() => const FlutterSecureStorage());
   getIt.registerLazySingleton(() => SecureStorageService());
   getIt.registerLazySingleton(() => SessionService());
-  getIt.registerLazySingleton(() => RouteGuard(getIt<SessionService>()));
 
   // Enregistrement du service DocuSign
   getIt.registerLazySingleton<DocuSignService>(() => DocuSignService());
+    // Services externes
+  getIt.registerLazySingleton<OpenRouteService>(() => OpenRouteService(
+        apiKey: '5b3ce3597851110001cf6248c25ce73e7fc44895be99f46b9e13afbd',
+      ));
 
-  // Configuration de l'URL de l'API en fonction de la plateforme
-  final String apiBaseUrl = _getApiBaseUrl();
-  getIt.registerLazySingleton<String>(() => apiBaseUrl,
-      instanceName: 'apiBaseUrl');
+  getIt.registerLazySingleton<LocationService>(() => LocationService(
+        logger: getIt<Logger>(),
+      ));
 
-  getIt<Logger>().i('API Base URL configurée: $apiBaseUrl ');
 
+  // Enregistrement des URLs
+  getIt.registerLazySingleton<String>(() => ApiConfig.landServiceUrl, instanceName: 'landServiceUrl');
+  getIt.registerLazySingleton<String>(() => ApiConfig.userManagementUrl, instanceName: 'userManagementUrl');
+  
+  // Journaliser les URLs configurées
+  getIt<Logger>().i('Land Service URL configurée: ${ApiConfig.landServiceUrl}');
+  getIt<Logger>().i('User Management URL configurée: ${ApiConfig.userManagementUrl}');
+  getIt<Logger>().i('GraphQL Endpoint configuré: ${ApiConfig.graphqlEndpoint}');
+  
   // Configuration de Dio avec AuthInterceptor pour LandService
   getIt.registerLazySingleton(() {
     final dio = Dio();
 
     // Configuration de base avec l'URL
-    dio.options.baseUrl = apiBaseUrl;
+     dio.options.baseUrl = ApiConfig.landServiceUrl;
     dio.options.connectTimeout = const Duration(seconds: 15);
     dio.options.receiveTimeout = const Duration(seconds: 15);
 
@@ -101,30 +107,32 @@ void setupInjection() {
       'Content-Type': 'application/json',
     };
 
-    // Ajout d'un intercepteur de logs pour le débogage
-    dio.interceptors.add(
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (log) {
-          getIt<Logger>().d('[Dio] $log');
-        },
-      ),
-    );
-
     getIt<Logger>().i(
         ' Dio client configured with AuthInterceptor and DocuSignInterceptor');
     return dio;
-  });
+  }, instanceName: 'landServiceDio');
 
-  // Services externes
-  getIt.registerLazySingleton<OpenRouteService>(() => OpenRouteService(
-        apiKey: '5b3ce3597851110001cf6248c25ce73e7fc44895be99f46b9e13afbd',
-      ));
+  getIt.registerLazySingleton(() {
+    final dio = Dio();
 
-  getIt.registerLazySingleton<LocationService>(() => LocationService(
+    dio.options.baseUrl = ApiConfig.userManagementUrl;
+    dio.options.connectTimeout = Duration(seconds: ApiConfig.apiTimeout);
+    dio.options.receiveTimeout = Duration(seconds: ApiConfig.apiTimeout);
+
+    // Intercepteurs
+    dio.interceptors.add(
+      AuthInterceptor(
+        secureStorage: getIt<SecureStorageService>(),
         logger: getIt<Logger>(),
-      ));
+      ),
+    );
+
+    return dio;
+  }, instanceName: 'userManagementDio');
+
+  // CORRECTION ICI: Enregistrer une instance par défaut de Dio
+  // Utiliser l'instance landServiceDio comme instance par défaut
+  getIt.registerLazySingleton<Dio>(() => getIt<Dio>(instanceName: 'landServiceDio'));
 
   // Data sources
   getIt.registerLazySingleton<AuthRemoteDataSource>(
@@ -136,26 +144,26 @@ void setupInjection() {
 
   getIt.registerLazySingleton<GeometreRemoteDataSource>(
     () => GeometreRemoteDataSource(
-      dio: getIt<Dio>(),
+      dio: getIt<Dio>(), // Utilisera l'instance par défaut maintenant
       logger: getIt<Logger>(),
-      baseUrl: apiBaseUrl,
+      baseUrl: ApiConfig.landServiceUrl,
     ),
   );
 
   getIt.registerLazySingleton<ExpertJuridiqueRemoteDataSource>(
     () => ExpertJuridiqueRemoteDataSource(
-      dio: getIt<Dio>(),
+      dio: getIt<Dio>(), // Utilisera l'instance par défaut maintenant
       logger: getIt<Logger>(),
-      baseUrl: apiBaseUrl,
+      baseUrl: ApiConfig.landServiceUrl,
     ),
   );
 
   getIt.registerLazySingleton<DocuSignRemoteDataSource>(
       () => DocuSignRemoteDataSource(
-            dio: getIt<Dio>(),
+            dio: getIt<Dio>(), // Utilisera l'instance par défaut maintenant
             logger: getIt<Logger>(),
             secureStorage: getIt<SecureStorageService>(),
-            baseUrl: apiBaseUrl,
+            baseUrl: ApiConfig.landServiceUrl,
           ));
 
   // Repositories
@@ -294,23 +302,4 @@ void setupInjection() {
     Level.info,
     ' Dependency injection setup completed ',
   );
-}
-
-// Fonction pour déterminer l'URL de l'API en fonction de la plateforme
-String _getApiBaseUrl() {
-  const String postmanWorkingUrl = 'http://localhost:5000';
-
-  if (kIsWeb) {
-    // Pour le web, on utilise l'URL complète avec le protocole pour éviter les problèmes CORS
-    return postmanWorkingUrl;
-  } else if (Platform.isAndroid) {
-    // Pour Android, remplacer localhost par 10.0.2.2 (l'adresse IP de l'hôte depuis l'émulateur)
-    return 'http://10.0.2.2:5000';
-  } else if (Platform.isIOS) {
-    // Pour iOS, utiliser 127.0.0.1 au lieu de localhost
-    return 'http://127.0.0.1:5000';
-  } else {
-    // Pour les autres plateformes (desktop)
-    return postmanWorkingUrl;
-  }
 }
